@@ -12,6 +12,20 @@ Its value lies in demonstrating three things clearly:
 - metadata-informed retrieval for legal references,
 - careful scope control in a domain where overclaiming would be misleading.
 
+## Screenshots
+
+If you want to present the project visually, place a few repository screenshots in `screenshots/`.
+
+- `screenshots/home.png`: the landing view of the app before a query is submitted.
+- `screenshots/article-query.png`: an example query for a specific legal reference such as `Article 6`.
+- `screenshots/obligations-query.png`: an example broad obligations query showing the structured answer format and retrieved excerpts.
+
+Example layout:
+
+![Home screen](screenshots/home.png)
+![Article query example](screenshots/article-query.png)
+![Obligations query example](screenshots/obligations-query.png)
+
 ## Project Purpose
 
 The purpose of this project is to make a complex legal text easier to explore through a simple and transparent interface. Instead of requiring a user to manually scan a long regulation, the app:
@@ -104,6 +118,7 @@ legal-rag/
 ├── app.py
 ├── requirements.txt
 ├── README.md
+├── screenshots/
 ├── src/
 │   ├── ingest.py
 │   └── legal_chunks.py
@@ -115,6 +130,7 @@ legal-rag/
 Key files:
 
 - `app.py`: Streamlit interface, retrieval flow, and structured answer rendering.
+- `screenshots/`: repository images used in the README or presentation materials.
 - `src/ingest.py`: document ingestion and plain-text export to `data/parsed/`.
 - `src/legal_chunks.py`: text cleanup, legal chunking, metadata extraction, and scoring logic.
 - `data/raw/`: input documents.
