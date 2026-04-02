@@ -1,0 +1,8 @@
+.venv/
+.venv312/
+__pycache__/
+*.pyc
+.DS_Store
+README_old.md
+data/raw/
+data/parsed/
