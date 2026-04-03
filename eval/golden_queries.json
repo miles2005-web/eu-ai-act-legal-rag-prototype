@@ -1,0 +1,58 @@
+[
+  {
+    "id": "article-6",
+    "query": "What does Article 6 say about high-risk AI classification?",
+    "expect": {
+      "article_number": "6"
+    }
+  },
+  {
+    "id": "article-9",
+    "query": "What does Article 9 require for risk management systems?",
+    "expect": {
+      "article_number": "9"
+    }
+  },
+  {
+    "id": "annex-iii",
+    "query": "What is listed in Annex III?",
+    "expect": {
+      "annex_ref": "III"
+    }
+  },
+  {
+    "id": "recital-12",
+    "query": "What does Recital 12 discuss?",
+    "expect": {
+      "recital_ref": "12"
+    }
+  },
+  {
+    "id": "chapter-i",
+    "query": "What is in Chapter I of the EU AI Act?",
+    "expect": {
+      "chapter_heading": "Chapter I"
+    }
+  },
+  {
+    "id": "provider-obligations",
+    "query": "What obligations do providers of high-risk AI systems have?",
+    "expect_any": [
+      {
+        "article_number": "9"
+      },
+      {
+        "article_number": "10"
+      },
+      {
+        "article_number": "11"
+      },
+      {
+        "article_number": "13"
+      },
+      {
+        "article_number": "14"
+      }
+    ]
+  }
+]

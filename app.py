@@ -7,6 +7,7 @@ import streamlit as st
 from src.legal_chunks import build_structured_chunks
 from src.legal_chunks import extract_query_metadata
 from src.legal_chunks import is_provider_obligations_query
+from src.legal_chunks import narrow_chunks_for_query
 from src.legal_chunks import score_chunk
 
 
@@ -58,8 +59,9 @@ def build_index(documents: list[dict]) -> list[dict]:
 def retrieve(query: str, indexed_chunks: list[dict], top_k: int = 3) -> list[dict]:
     """Return the best matching chunks for the user's question."""
     scored_chunks = []
+    candidate_chunks = narrow_chunks_for_query(query, indexed_chunks)
 
-    for chunk in indexed_chunks:
+    for chunk in candidate_chunks:
         score = score_chunk(query, chunk)
         if score > 0:
             scored_chunks.append({**chunk, "score": score})
@@ -131,6 +133,8 @@ def _preview_text(text: str, max_chars: int = 300) -> str:
 
 
 def _format_provision_label(match: dict) -> str | None:
+    if match.get("canonical_citation"):
+        return match["canonical_citation"]
     if match.get("article_number"):
         return f"Article {match['article_number']}"
     if match.get("annex_ref"):
@@ -185,6 +189,7 @@ with st.sidebar:
     st.write("Searchable chunks:", len(indexed_chunks))
     st.write("Chunking: chapter / section / article / annex / recital aware")
     st.write("Retrieval method: keyword overlap plus simple metadata boosts")
+    st.write("Metadata: citation, chapter/section numbers, article title, parent context")
 
 question = st.text_input(
     "Your question",
@@ -207,9 +212,18 @@ if submitted and question.strip():
     if any(query_metadata.values()):
         active_filters = []
         if query_metadata["article_number"]:
-            active_filters.append(f"Article {query_metadata['article_number']}")
+            article_ref = f"Article {query_metadata['article_number']}"
+            if query_metadata.get("paragraph_number"):
+                article_ref += f"({query_metadata['paragraph_number']})"
+            if query_metadata.get("point_label"):
+                article_ref += f"({query_metadata['point_label'].lower()})"
+            active_filters.append(article_ref)
         if query_metadata["annex_ref"]:
             active_filters.append(f"Annex {query_metadata['annex_ref']}")
+        if query_metadata["chapter_number"]:
+            active_filters.append(f"Chapter {query_metadata['chapter_number']}")
+        if query_metadata["section_number"]:
+            active_filters.append(f"Section {query_metadata['section_number']}")
         if query_metadata["recital_ref"]:
             active_filters.append(f"Recital {query_metadata['recital_ref']}")
         st.caption("Detected legal reference in query: " + ", ".join(active_filters))
@@ -223,13 +237,29 @@ if submitted and question.strip():
         for result in results:
             citation = f"{result['source']} (chunk {result['chunk_id']})"
             with st.expander(citation, expanded=True):
+                if result.get("canonical_citation"):
+                    st.markdown(f"**Citation**  \n{result['canonical_citation']}")
+
+                if result.get("parent_citation"):
+                    st.caption("Parent context: " + result["parent_citation"])
+
                 metadata_bits = []
                 if result.get("chapter_heading"):
-                    metadata_bits.append(result["chapter_heading"])
+                    chapter_label = result["chapter_heading"]
+                    if result.get("chapter_number"):
+                        chapter_label += f" [number: {result['chapter_number']}]"
+                    metadata_bits.append(chapter_label)
                 if result.get("section_heading"):
-                    metadata_bits.append(result["section_heading"])
-                if result.get("article_number"):
-                    metadata_bits.append(f"Article {result['article_number']}")
+                    section_label = result["section_heading"]
+                    if result.get("section_number"):
+                        section_label += f" [number: {result['section_number']}]"
+                    metadata_bits.append(section_label)
+                if result.get("article_title"):
+                    metadata_bits.append(f"Article title: {result['article_title']}")
+                if result.get("paragraph_number"):
+                    metadata_bits.append(f"Paragraph: {result['paragraph_number']}")
+                if result.get("point_label"):
+                    metadata_bits.append(f"Point: ({result['point_label']})")
                 if result.get("annex_ref"):
                     metadata_bits.append(f"Annex {result['annex_ref']}")
                 if result.get("recital_ref"):
