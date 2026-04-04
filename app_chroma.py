@@ -83,6 +83,11 @@ def highlight_terms(text, query):
     return result
 
 with st.sidebar:
+    st.markdown("**Settings**")
+    top_k = st.selectbox("Retrieval count", [5, 8, 10, 15, 20], index=2)
+    token_budget = st.selectbox("Token budget", [3000, 4000, 6000, 8000, 10000], index=2)
+    show_routing = st.checkbox("Show routing info", value=True)
+    st.markdown("---")
     st.write(f"**Records:** {len(store)}")
     st.write("**Embedding:** text-embedding-3-small")
     st.write("**LLM:** GPT-4o-mini via OpenRouter")
@@ -103,9 +108,6 @@ with st.sidebar:
         if st.button(label):
             st.session_state["question"] = q
 
-if "history" not in st.session_state:
-    st.session_state["history"] = []
-
 question = st.text_input("Your question", value=st.session_state.get("question", ""),
     placeholder="e.g. What are the obligations for providers of high-risk AI systems?")
 
@@ -122,12 +124,13 @@ if st.button("Analyze", type="primary") and question.strip():
         where_filter = conditions[0] if len(conditions) == 1 else {"$or": conditions}
         detected = ", ".join(v for v in [refs.get("article"), refs.get("annex"), refs.get("recital")] if v)
         route_msg = f"🎯 Detected: {detected} → metadata-filtered search"
-    st.info(route_msg)
+    if show_routing:
+        st.info(route_msg)
     with st.spinner("Retrieving provisions..."):
         qr = client.embeddings.create(model="openai/text-embedding-3-small", input=question)
-        results = search(qr.data[0].embedding, top_k=10, where=where_filter)
+        results = search(qr.data[0].embedding, top_k=top_k, where=where_filter)
     t_retrieve = time.time() - t0
-    budgeted, used_tokens = apply_token_budget(results)
+    budgeted, used_tokens = apply_token_budget(results, budget=token_budget)
     context = "\n\n---\n\n".join([f"[{item['meta'].get('canonical_citation','N/A')}]\n{item['doc']}" for item in budgeted])
     with st.spinner("Generating compliance assessment..."):
         llm_response = client.chat.completions.create(
