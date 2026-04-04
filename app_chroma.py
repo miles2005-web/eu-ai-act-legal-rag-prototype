@@ -3,6 +3,24 @@ from openai import OpenAI
 
 st.set_page_config(page_title="EU AI Act Compliance Navigator", page_icon="⚖️", layout="wide")
 
+# ---- Custom CSS: user messages right-aligned ----
+st.markdown("""
+<style>
+[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {
+    flex-direction: row-reverse;
+    text-align: right;
+}
+[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) .stMarkdown {
+    display: flex;
+    justify-content: flex-end;
+}
+div.stButton > button[kind="secondary"] {
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
 api_key = os.environ.get("OPENROUTER_API_KEY", "")
 if not api_key:
     api_key = st.secrets.get("OPENROUTER_API_KEY", "")
@@ -20,12 +38,12 @@ def load_vectors():
 store = load_vectors()
 
 LANGS = {
-    "English": {"instruction": "Respond in English.", "title": "EU AI Act Compliance Navigator", "desc": "Describe your AI system or ask about the EU AI Act.", "placeholder": "Describe your AI system or ask about the EU AI Act...", "analyze": "Compliance Assessment", "sources": "Retrieved provisions", "disclaimer": "This tool provides preliminary guidance only and does not constitute legal advice.", "searching": "Searching...", "generating": "Generating assessment..."},
-    "Français": {"instruction": "Réponds en français.", "title": "Navigateur de conformité EU AI Act", "desc": "Décrivez votre système d'IA ou posez une question sur l'EU AI Act.", "placeholder": "Décrivez votre système d'IA...", "analyze": "Évaluation de conformité", "sources": "Dispositions récupérées", "disclaimer": "Cet outil fournit des orientations préliminaires uniquement et ne constitue pas un avis juridique.", "searching": "Recherche...", "generating": "Génération de l'évaluation..."},
-    "Deutsch": {"instruction": "Antworte auf Deutsch.", "title": "EU AI Act Compliance Navigator", "desc": "Beschreiben Sie Ihr KI-System oder fragen Sie zum EU AI Act.", "placeholder": "Beschreiben Sie Ihr KI-System...", "analyze": "Konformitätsbewertung", "sources": "Abgerufene Bestimmungen", "disclaimer": "Dieses Tool bietet nur vorläufige Orientierung und stellt keine Rechtsberatung dar.", "searching": "Suche...", "generating": "Bewertung wird erstellt..."},
-    "Español": {"instruction": "Responde en español.", "title": "Navegador de cumplimiento EU AI Act", "desc": "Describa su sistema de IA o pregunte sobre la EU AI Act.", "placeholder": "Describa su sistema de IA...", "analyze": "Evaluación de cumplimiento", "sources": "Disposiciones recuperadas", "disclaimer": "Esta herramienta proporciona orientación preliminar y no constituye asesoramiento jurídico.", "searching": "Buscando...", "generating": "Generando evaluación..."},
-    "简体中文": {"instruction": "请用简体中文回答。", "title": "欧盟AI法案合规导航", "desc": "描述你的AI系统或询问欧盟AI法案相关问题。", "placeholder": "描述你的AI系统或询问欧盟AI法案...", "analyze": "合规评估", "sources": "检索到的条款", "disclaimer": "本工具仅提供初步指导，不构成法律建议。", "searching": "检索中...", "generating": "生成评估中..."},
-    "繁體中文": {"instruction": "請用繁體中文回答。", "title": "歐盟AI法案合規導航", "desc": "描述你的AI系統或詢問歐盟AI法案相關問題。", "placeholder": "描述你的AI系統或詢問歐盟AI法案...", "analyze": "合規評估", "sources": "檢索到的條款", "disclaimer": "本工具僅提供初步指導，不構成法律建議。", "searching": "檢索中...", "generating": "生成評估中..."},
+    "English": {"instruction": "Respond in English.", "title": "EU AI Act Compliance Navigator", "desc": "Describe your AI system or ask about the EU AI Act.", "placeholder": "Describe your AI system or ask about the EU AI Act...", "sources": "Retrieved provisions", "disclaimer": "This tool provides preliminary guidance only and does not constitute legal advice.", "generating": "Generating assessment...", "copy": "Copy answer", "copied": "Copied!", "clear": "Clear chat"},
+    "Français": {"instruction": "Réponds en français.", "title": "Navigateur de conformité EU AI Act", "desc": "Décrivez votre système d'IA ou posez une question sur l'EU AI Act.", "placeholder": "Décrivez votre système d'IA...", "sources": "Dispositions récupérées", "disclaimer": "Cet outil fournit des orientations préliminaires uniquement.", "generating": "Génération...", "copy": "Copier", "copied": "Copié!", "clear": "Effacer le chat"},
+    "Deutsch": {"instruction": "Antworte auf Deutsch.", "title": "EU AI Act Compliance Navigator", "desc": "Beschreiben Sie Ihr KI-System oder fragen Sie zum EU AI Act.", "placeholder": "Beschreiben Sie Ihr KI-System...", "sources": "Abgerufene Bestimmungen", "disclaimer": "Dieses Tool bietet nur vorläufige Orientierung.", "generating": "Bewertung wird erstellt...", "copy": "Kopieren", "copied": "Kopiert!", "clear": "Chat löschen"},
+    "Español": {"instruction": "Responde en español.", "title": "Navegador de cumplimiento EU AI Act", "desc": "Describa su sistema de IA o pregunte sobre la EU AI Act.", "placeholder": "Describa su sistema de IA...", "sources": "Disposiciones recuperadas", "disclaimer": "Esta herramienta proporciona orientación preliminar.", "generating": "Generando...", "copy": "Copiar", "copied": "¡Copiado!", "clear": "Borrar chat"},
+    "简体中文": {"instruction": "请用简体中文回答。", "title": "欧盟AI法案合规导航", "desc": "描述你的AI系统或询问欧盟AI法案相关问题。", "placeholder": "描述你的AI系统或询问欧盟AI法案...", "sources": "检索到的条款", "disclaimer": "本工具仅提供初步指导，不构成法律建议。", "generating": "生成评估中...", "copy": "复制回答", "copied": "已复制!", "clear": "清除对话"},
+    "繁體中文": {"instruction": "請用繁體中文回答。", "title": "歐盟AI法案合規導航", "desc": "描述你的AI系統或詢問歐盟AI法案相關問題。", "placeholder": "描述你的AI系統或詢問歐盟AI法案...", "sources": "檢索到的條款", "disclaimer": "本工具僅提供初步指導，不構成法律建議。", "generating": "生成評估中...", "copy": "複製回答", "copied": "已複製!", "clear": "清除對話"},
 }
 
 def cosine_sim(a, b):
@@ -45,12 +63,10 @@ def search_store(query_emb, top_k=10, where=None):
                     for c in cond:
                         for mk, mv in c.items():
                             val = mv.get("$eq","") if isinstance(mv, dict) else mv
-                            if val and val in str(item["metadata"].get(mk,"")):
-                                match = True
+                            if val and val in str(item["metadata"].get(mk,"")): match = True
                 else:
                     val = cond.get("$eq","") if isinstance(cond, dict) else cond
-                    if val and val in str(item["metadata"].get(key,"")):
-                        match = True
+                    if val and val in str(item["metadata"].get(key,"")): match = True
             if not match: continue
         sim = cosine_sim(query_emb, item["embedding"])
         results.append({"doc": item["document"], "meta": item["metadata"], "score": sim})
@@ -77,10 +93,9 @@ def apply_token_budget(items, budget=6000):
 
 def run_query(prompt, lang_key, top_k, token_budget):
     L = LANGS[lang_key]
-    t0 = time.time()
     refs = extract_legal_references(prompt)
     where_filter = None
-    route = ""
+    route = "🔍 Vector search"
     if refs["has_references"]:
         conditions = []
         if refs.get("article"): conditions.append({"article_number": {"$eq": refs["article"]}})
@@ -89,8 +104,6 @@ def run_query(prompt, lang_key, top_k, token_budget):
         where_filter = conditions[0] if len(conditions) == 1 else {"$or": conditions}
         detected = ", ".join(v for v in [refs.get("article"), refs.get("annex"), refs.get("recital")] if v)
         route = f"🎯 {detected}"
-    else:
-        route = "🔍 Vector search"
     qr = client.embeddings.create(model="openai/text-embedding-3-small", input=prompt)
     results = search_store(qr.data[0].embedding, top_k=top_k, where=where_filter)
     budgeted, used_tokens = apply_token_budget(results, budget=token_budget)
@@ -113,14 +126,12 @@ def run_query(prompt, lang_key, top_k, token_budget):
         ],
     )
     answer = llm_response.choices[0].message.content
-    t_total = time.time() - t0
     sources_md = ""
     for i, item in enumerate(budgeted):
         meta = item["meta"]
         citation = meta.get("canonical_citation") or meta.get("article_number") or "N/A"
-        sources_md += f"**[{i+1}] {citation}** (sim: {item['score']:.3f})\n\n"
-        sources_md += f"{item['doc'][:300]}...\n\n---\n\n"
-    return answer, sources_md, route, t_total, len(budgeted), used_tokens
+        sources_md += f"**[{i+1}] {citation}** (sim: {item['score']:.3f})\n\n{item['doc'][:300]}...\n\n---\n\n"
+    return answer, sources_md, route, len(budgeted), used_tokens
 
 # ---- Sidebar ----
 with st.sidebar:
@@ -130,6 +141,11 @@ with st.sidebar:
     token_budget = st.selectbox("Token budget", [3000, 6000, 8000, 10000], index=1)
     st.markdown("---")
     st.caption(f"Records: {len(store)} | LLM: GPT-4o-mini")
+    st.markdown("---")
+    L = LANGS[lang]
+    if st.button(f"🗑 {L['clear']}", use_container_width=True):
+        st.session_state.messages = []
+        st.rerun()
     st.markdown("---")
     quick = {
         "⚡ High-risk classification": "What does Article 6 say about high-risk AI classification?",
@@ -147,44 +163,51 @@ with st.sidebar:
             st.session_state["pending_query"] = q
 
 L = LANGS[lang]
-
-# ---- Title ----
 st.title(f"⚖️ {L['title']}")
 st.write(L["desc"])
 
-# ---- Chat history ----
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-for msg in st.session_state.messages:
+for idx, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-        if msg.get("sources"):
-            with st.expander(f"📄 {L['sources']}", expanded=False):
-                st.markdown(msg["sources"])
-        if msg.get("meta_info"):
-            st.caption(msg["meta_info"])
+        if msg["role"] == "assistant":
+            if msg.get("sources"):
+                with st.expander(f"📄 {L['sources']}", expanded=False):
+                    st.markdown(msg["sources"])
+            if msg.get("meta_info"):
+                st.caption(msg["meta_info"])
+            col1, col2 = st.columns([1, 8])
+            with col1:
+                if st.button("📋", key=f"copy_{idx}", help=L["copy"]):
+                    st.toast(L["copied"])
+            with col2:
+                st.empty()
 
-# ---- Determine input source ----
 user_input = st.chat_input(L["placeholder"])
-
 if st.session_state.get("pending_query"):
     user_input = st.session_state.pop("pending_query")
 
-# ---- Process ----
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
-
     with st.chat_message("assistant"):
+        t0 = time.time()
         with st.spinner(L["generating"]):
-            answer, sources_md, route, t_total, n_prov, used_tok = run_query(user_input, lang, top_k, token_budget)
+            answer, sources_md, route, n_prov, used_tok = run_query(user_input, lang, top_k, token_budget)
+        t_total = time.time() - t0
         st.markdown(answer)
         meta_info = f"{route} | ⏱ {t_total:.1f}s | {n_prov} provisions (~{used_tok} tokens)"
         st.caption(meta_info)
         with st.expander(f"📄 {L['sources']}", expanded=False):
             st.markdown(sources_md)
+        copy_idx = len(st.session_state.messages)
+        col1, col2 = st.columns([1, 8])
+        with col1:
+            if st.button("📋", key=f"copy_{copy_idx}", help=L["copy"]):
+                st.toast(L["copied"])
         st.session_state.messages.append({"role": "assistant", "content": answer, "sources": sources_md, "meta_info": meta_info})
 
 st.caption(f"⚠️ {L['disclaimer']}")
