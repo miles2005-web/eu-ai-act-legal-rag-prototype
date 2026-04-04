@@ -6,3 +6,5 @@ __pycache__/
 README_old.md
 data/raw/
 data/parsed/
+chroma_db/
+.env
