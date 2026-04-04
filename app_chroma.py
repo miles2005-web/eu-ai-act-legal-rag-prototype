@@ -19,13 +19,13 @@ def load_vectors():
 
 store = load_vectors()
 
-LANG_OPTIONS = {
-    "English": "Respond in English.",
-    "Français": "Réponds en français.",
-    "Deutsch": "Antworte auf Deutsch.",
-    "Español": "Responde en español.",
-    "简体中文": "请用简体中文回答。",
-    "繁體中文": "請用繁體中文回答。",
+LANGS = {
+    "English": {"instruction": "Respond in English.", "title": "EU AI Act Compliance Navigator", "desc": "Describe your AI system or ask about the EU AI Act.", "placeholder": "Describe your AI system or ask about the EU AI Act...", "analyze": "Compliance Assessment", "sources": "Retrieved provisions", "disclaimer": "This tool provides preliminary guidance only and does not constitute legal advice.", "searching": "Searching...", "generating": "Generating assessment..."},
+    "Français": {"instruction": "Réponds en français.", "title": "Navigateur de conformité EU AI Act", "desc": "Décrivez votre système d'IA ou posez une question sur l'EU AI Act.", "placeholder": "Décrivez votre système d'IA...", "analyze": "Évaluation de conformité", "sources": "Dispositions récupérées", "disclaimer": "Cet outil fournit des orientations préliminaires uniquement et ne constitue pas un avis juridique.", "searching": "Recherche...", "generating": "Génération de l'évaluation..."},
+    "Deutsch": {"instruction": "Antworte auf Deutsch.", "title": "EU AI Act Compliance Navigator", "desc": "Beschreiben Sie Ihr KI-System oder fragen Sie zum EU AI Act.", "placeholder": "Beschreiben Sie Ihr KI-System...", "analyze": "Konformitätsbewertung", "sources": "Abgerufene Bestimmungen", "disclaimer": "Dieses Tool bietet nur vorläufige Orientierung und stellt keine Rechtsberatung dar.", "searching": "Suche...", "generating": "Bewertung wird erstellt..."},
+    "Español": {"instruction": "Responde en español.", "title": "Navegador de cumplimiento EU AI Act", "desc": "Describa su sistema de IA o pregunte sobre la EU AI Act.", "placeholder": "Describa su sistema de IA...", "analyze": "Evaluación de cumplimiento", "sources": "Disposiciones recuperadas", "disclaimer": "Esta herramienta proporciona orientación preliminar y no constituye asesoramiento jurídico.", "searching": "Buscando...", "generating": "Generando evaluación..."},
+    "简体中文": {"instruction": "请用简体中文回答。", "title": "欧盟AI法案合规导航", "desc": "描述你的AI系统或询问欧盟AI法案相关问题。", "placeholder": "描述你的AI系统或询问欧盟AI法案...", "analyze": "合规评估", "sources": "检索到的条款", "disclaimer": "本工具仅提供初步指导，不构成法律建议。", "searching": "检索中...", "generating": "生成评估中..."},
+    "繁體中文": {"instruction": "請用繁體中文回答。", "title": "歐盟AI法案合規導航", "desc": "描述你的AI系統或詢問歐盟AI法案相關問題。", "placeholder": "描述你的AI系統或詢問歐盟AI法案...", "analyze": "合規評估", "sources": "檢索到的條款", "disclaimer": "本工具僅提供初步指導，不構成法律建議。", "searching": "檢索中...", "generating": "生成評估中..."},
 }
 
 def cosine_sim(a, b):
@@ -35,7 +35,7 @@ def cosine_sim(a, b):
     if na == 0 or nb == 0: return 0.0
     return dot / (na * nb)
 
-def search(query_emb, top_k=10, where=None):
+def search_store(query_emb, top_k=10, where=None):
     results = []
     for item in store:
         if where:
@@ -67,26 +67,70 @@ def extract_legal_references(query):
     if rec: refs["recital"] = f"Recital {rec.group(1)}"; refs["has_references"] = True
     return refs
 
-def estimate_tokens(text): return len(text) // 4
-
 def apply_token_budget(items, budget=6000):
     selected, total = [], 0
     for item in items:
-        t = estimate_tokens(item["doc"])
+        t = len(item["doc"]) // 4
         if total + t > budget and selected: break
         selected.append(item); total += t
     return selected, total
 
+def run_query(prompt, lang_key, top_k, token_budget):
+    L = LANGS[lang_key]
+    t0 = time.time()
+    refs = extract_legal_references(prompt)
+    where_filter = None
+    route = ""
+    if refs["has_references"]:
+        conditions = []
+        if refs.get("article"): conditions.append({"article_number": {"$eq": refs["article"]}})
+        if refs.get("annex"): conditions.append({"annex_ref": {"$eq": refs["annex"]}})
+        if refs.get("recital"): conditions.append({"recital_ref": {"$eq": refs["recital"]}})
+        where_filter = conditions[0] if len(conditions) == 1 else {"$or": conditions}
+        detected = ", ".join(v for v in [refs.get("article"), refs.get("annex"), refs.get("recital")] if v)
+        route = f"🎯 {detected}"
+    else:
+        route = "🔍 Vector search"
+    qr = client.embeddings.create(model="openai/text-embedding-3-small", input=prompt)
+    results = search_store(qr.data[0].embedding, top_k=top_k, where=where_filter)
+    budgeted, used_tokens = apply_token_budget(results, budget=token_budget)
+    context = "\n\n---\n\n".join([f"[{item['meta'].get('canonical_citation','N/A')}]\n{item['doc']}" for item in budgeted])
+    llm_response = client.chat.completions.create(
+        model="openai/gpt-4o-mini", temperature=0.1,
+        messages=[
+            {"role": "system", "content": (
+                f"{L['instruction']}\n\n"
+                "You are an EU AI Act compliance analyst. Based ONLY on the retrieved provisions below, "
+                "provide a structured assessment:\n\n"
+                "## Risk Classification\n[classification + reasoning]\n\n"
+                "## Applicable Legal Basis\n[articles with explanations]\n\n"
+                "## Key Compliance Obligations\n[numbered list with article references]\n\n"
+                "## Cross-Regulatory Considerations\n[overlaps if found]\n\n"
+                "## Information Gaps\n[what was not covered]\n\n"
+                "Cite specific articles for every claim. Do NOT use external knowledge."
+            )},
+            {"role": "user", "content": f"RETRIEVED PROVISIONS:\n{context}\n\nQUESTION:\n{prompt}"}
+        ],
+    )
+    answer = llm_response.choices[0].message.content
+    t_total = time.time() - t0
+    sources_md = ""
+    for i, item in enumerate(budgeted):
+        meta = item["meta"]
+        citation = meta.get("canonical_citation") or meta.get("article_number") or "N/A"
+        sources_md += f"**[{i+1}] {citation}** (sim: {item['score']:.3f})\n\n"
+        sources_md += f"{item['doc'][:300]}...\n\n---\n\n"
+    return answer, sources_md, route, t_total, len(budgeted), used_tokens
+
 # ---- Sidebar ----
 with st.sidebar:
     st.markdown("### ⚖️ EU AI Act Navigator")
-    lang = st.selectbox("Language / 语言", list(LANG_OPTIONS.keys()), index=0)
+    lang = st.selectbox("Language / 语言", list(LANGS.keys()), index=0)
     top_k = st.selectbox("Retrieval count", [5, 8, 10, 15], index=2)
     token_budget = st.selectbox("Token budget", [3000, 6000, 8000, 10000], index=1)
     st.markdown("---")
-    st.caption(f"Records: {len(store)} | Embedding: text-embedding-3-small | LLM: GPT-4o-mini")
+    st.caption(f"Records: {len(store)} | LLM: GPT-4o-mini")
     st.markdown("---")
-    st.markdown("**Quick queries**")
     quick = {
         "⚡ High-risk classification": "What does Article 6 say about high-risk AI classification?",
         "📋 HR screening tool": "An AI system that screens job applicants' CVs and ranks candidates.",
@@ -100,99 +144,47 @@ with st.sidebar:
     }
     for label, q in quick.items():
         if st.button(label, use_container_width=True):
-            st.session_state.messages.append({"role": "user", "content": q})
-            st.rerun()
+            st.session_state["pending_query"] = q
 
-# ---- Chat state ----
+L = LANGS[lang]
+
+# ---- Title ----
+st.title(f"⚖️ {L['title']}")
+st.write(L["desc"])
+
+# ---- Chat history ----
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# ---- Display chat history ----
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         if msg.get("sources"):
-            with st.expander("📄 Retrieved provisions", expanded=False):
+            with st.expander(f"📄 {L['sources']}", expanded=False):
                 st.markdown(msg["sources"])
+        if msg.get("meta_info"):
+            st.caption(msg["meta_info"])
 
-# ---- Chat input ----
-if prompt := st.chat_input("Describe your AI system or ask about the EU AI Act..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
+# ---- Determine input source ----
+user_input = st.chat_input(L["placeholder"])
+
+if st.session_state.get("pending_query"):
+    user_input = st.session_state.pop("pending_query")
+
+# ---- Process ----
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
-        st.markdown(prompt)
+        st.markdown(user_input)
 
     with st.chat_message("assistant"):
-        t0 = time.time()
-
-        # Self-Query routing
-        refs = extract_legal_references(prompt)
-        where_filter = None
-        if refs["has_references"]:
-            conditions = []
-            if refs.get("article"): conditions.append({"article_number": {"$eq": refs["article"]}})
-            if refs.get("annex"): conditions.append({"annex_ref": {"$eq": refs["annex"]}})
-            if refs.get("recital"): conditions.append({"recital_ref": {"$eq": refs["recital"]}})
-            where_filter = conditions[0] if len(conditions) == 1 else {"$or": conditions}
-            detected = ", ".join(v for v in [refs.get("article"), refs.get("annex"), refs.get("recital")] if v)
-            st.caption(f"🎯 Detected: {detected} → metadata-filtered search")
-        else:
-            st.caption("🔍 Full vector search")
-
-        # Retrieve
-        with st.spinner("Searching..."):
-            qr = client.embeddings.create(model="openai/text-embedding-3-small", input=prompt)
-            results = search(qr.data[0].embedding, top_k=top_k, where=where_filter)
-        t_retrieve = time.time() - t0
-
-        budgeted, used_tokens = apply_token_budget(results, budget=token_budget)
-        context = "\n\n---\n\n".join([f"[{item['meta'].get('canonical_citation','N/A')}]\n{item['doc']}" for item in budgeted])
-
-        lang_instruction = LANG_OPTIONS.get(lang, "Respond in English.")
-
-        # Generate
-        with st.spinner("Generating assessment..."):
-            llm_response = client.chat.completions.create(
-                model="openai/gpt-4o-mini", temperature=0.1,
-                messages=[
-                    {"role": "system", "content": (
-                        f"{lang_instruction}\n\n"
-                        "You are an EU AI Act compliance analyst. Based ONLY on the retrieved provisions below, "
-                        "provide a structured assessment:\n\n"
-                        "## Risk Classification\n[classification + reasoning]\n\n"
-                        "## Applicable Legal Basis\n[articles with explanations]\n\n"
-                        "## Key Compliance Obligations\n[numbered list with article references]\n\n"
-                        "## Cross-Regulatory Considerations\n[overlaps if found]\n\n"
-                        "## Information Gaps\n[what was not covered]\n\n"
-                        "Cite specific articles for every claim. Do NOT use external knowledge."
-                    )},
-                    {"role": "user", "content": f"RETRIEVED PROVISIONS:\n{context}\n\nQUESTION:\n{prompt}"}
-                ],
-            )
-            answer = llm_response.choices[0].message.content
-        t_total = time.time() - t0
-
+        with st.spinner(L["generating"]):
+            answer, sources_md, route, t_total, n_prov, used_tok = run_query(user_input, lang, top_k, token_budget)
         st.markdown(answer)
-        st.caption(f"⏱ {t_total:.1f}s | {len(budgeted)} provisions (~{used_tokens} tokens)")
-
-        # Build sources text
-        sources_md = ""
-        for i, item in enumerate(budgeted):
-            meta = item["meta"]
-            citation = meta.get("canonical_citation") or meta.get("article_number") or "N/A"
-            sources_md += f"**[{i+1}] {citation}** (sim: {item['score']:.3f})\n\n"
-            if meta.get("article_number"): sources_md += f"Article: {meta['article_number']}  \n"
-            if meta.get("annex_ref"): sources_md += f"Annex: {meta['annex_ref']}  \n"
-            if meta.get("recital_ref"): sources_md += f"Recital: {meta['recital_ref']}  \n"
-            sources_md += f"\n{item['doc'][:300]}...\n\n---\n\n"
-
-        with st.expander("📄 Retrieved provisions", expanded=False):
+        meta_info = f"{route} | ⏱ {t_total:.1f}s | {n_prov} provisions (~{used_tok} tokens)"
+        st.caption(meta_info)
+        with st.expander(f"📄 {L['sources']}", expanded=False):
             st.markdown(sources_md)
+        st.session_state.messages.append({"role": "assistant", "content": answer, "sources": sources_md, "meta_info": meta_info})
 
-        # Save to history
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": answer,
-            "sources": sources_md,
-        })
-
-    st.caption("⚠️ This tool provides preliminary guidance only and does not constitute legal advice.")
+st.caption(f"⚠️ {L['disclaimer']}")
