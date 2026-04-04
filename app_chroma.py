@@ -5,21 +5,10 @@ st.set_page_config(page_title="EU AI Act Compliance Navigator", page_icon="⚖�
 
 st.markdown("""
 <style>
-.user-msg {
-    display: flex; justify-content: flex-end; margin: 0.5rem 0;
-}
-.user-bubble {
-    background: #2b5797; color: white; padding: 0.7rem 1rem;
-    border-radius: 1rem 1rem 0.2rem 1rem; max-width: 75%; text-align: left;
-}
-.bot-msg {
-    display: flex; justify-content: flex-start; margin: 0.5rem 0;
-}
-.bot-bubble {
-    background: #333; color: #eee; padding: 0.7rem 1rem;
-    border-radius: 1rem 1rem 1rem 0.2rem; max-width: 85%; text-align: left;
-}
-.chat-area { max-height: 70vh; overflow-y: auto; padding: 1rem 0; }
+.user-msg { display: flex; justify-content: flex-end; margin: 0.5rem 0; }
+.user-bubble { background: #2b5797; color: white; padding: 0.7rem 1rem; border-radius: 1rem 1rem 0.2rem 1rem; max-width: 75%; text-align: left; }
+.bot-msg { display: flex; justify-content: flex-start; margin: 0.5rem 0; }
+.bot-bubble { background: #333; color: #eee; padding: 0.7rem 1rem; border-radius: 1rem 1rem 1rem 0.2rem; max-width: 85%; text-align: left; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -28,7 +17,7 @@ if not api_key:
     try: api_key = st.secrets["OPENROUTER_API_KEY"]
     except: pass
 if not api_key:
-    st.error("API key not configured. Add OPENROUTER_API_KEY to Streamlit Secrets (Settings → Secrets).")
+    st.error("Set OPENROUTER_API_KEY in Secrets.")
     st.stop()
 
 client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
@@ -41,12 +30,12 @@ def load_vectors():
 store = load_vectors()
 
 LANGS = {
-    "English": {"instruction": "Respond in English.", "title": "EU AI Act Compliance Navigator", "desc": "Describe your AI system or ask about the EU AI Act.", "placeholder": "Describe your AI system or ask about the EU AI Act...", "sources": "Retrieved provisions", "disclaimer": "This tool provides preliminary guidance only and does not constitute legal advice.", "generating": "Generating assessment...", "clear": "Clear chat"},
-    "Français": {"instruction": "Réponds en français.", "title": "Navigateur de conformité EU AI Act", "desc": "Décrivez votre système d'IA ou posez une question.", "placeholder": "Décrivez votre système d'IA...", "sources": "Dispositions récupérées", "disclaimer": "Orientations préliminaires uniquement.", "generating": "Génération...", "clear": "Effacer"},
-    "Deutsch": {"instruction": "Antworte auf Deutsch.", "title": "EU AI Act Compliance Navigator", "desc": "Beschreiben Sie Ihr KI-System oder fragen Sie zum EU AI Act.", "placeholder": "Beschreiben Sie Ihr KI-System...", "sources": "Abgerufene Bestimmungen", "disclaimer": "Nur vorläufige Orientierung.", "generating": "Wird erstellt...", "clear": "Löschen"},
-    "Español": {"instruction": "Responde en español.", "title": "Navegador de cumplimiento EU AI Act", "desc": "Describa su sistema de IA o pregunte.", "placeholder": "Describa su sistema de IA...", "sources": "Disposiciones recuperadas", "disclaimer": "Orientación preliminar.", "generating": "Generando...", "clear": "Borrar"},
-    "简体中文": {"instruction": "请用简体中文回答。", "title": "欧盟AI法案合规导航", "desc": "描述你的AI系统或询问欧盟AI法案相关问题。", "placeholder": "描述你的AI系统或询问欧盟AI法案...", "sources": "检索到的条款", "disclaimer": "本工具仅提供初步指导，不构成法律建议。", "generating": "生成评估中...", "clear": "清除对话"},
-    "繁體中文": {"instruction": "請用繁體中文回答。", "title": "歐盟AI法案合規導航", "desc": "描述你的AI系統或詢問歐盟AI法案。", "placeholder": "描述你的AI系統...", "sources": "檢索到的條款", "disclaimer": "僅提供初步指導。", "generating": "生成中...", "clear": "清除"},
+    "English": {"instruction": "Respond in English.", "title": "EU AI Act Compliance Navigator", "desc": "Describe your AI system or ask about the EU AI Act.", "placeholder": "Describe your AI system...", "sources": "Retrieved provisions", "disclaimer": "This tool provides preliminary guidance only and does not constitute legal advice.", "generating": "Generating...", "clear": "Clear chat", "download_answer": "Download answer", "download_history": "Download history", "regen": "Regenerate in this language"},
+    "Français": {"instruction": "Réponds en français.", "title": "Navigateur de conformité EU AI Act", "desc": "Décrivez votre système d'IA ou posez une question.", "placeholder": "Décrivez votre système d'IA...", "sources": "Dispositions", "disclaimer": "Orientations préliminaires uniquement.", "generating": "Génération...", "clear": "Effacer", "download_answer": "Télécharger", "download_history": "Télécharger l'historique", "regen": "Régénérer dans cette langue"},
+    "Deutsch": {"instruction": "Antworte auf Deutsch.", "title": "EU AI Act Compliance Navigator", "desc": "Beschreiben Sie Ihr KI-System.", "placeholder": "Beschreiben Sie Ihr KI-System...", "sources": "Bestimmungen", "disclaimer": "Nur vorläufige Orientierung.", "generating": "Wird erstellt...", "clear": "Löschen", "download_answer": "Herunterladen", "download_history": "Verlauf herunterladen", "regen": "In dieser Sprache neu generieren"},
+    "Español": {"instruction": "Responde en español.", "title": "Navegador de cumplimiento EU AI Act", "desc": "Describa su sistema de IA.", "placeholder": "Describa su sistema de IA...", "sources": "Disposiciones", "disclaimer": "Orientación preliminar.", "generating": "Generando...", "clear": "Borrar", "download_answer": "Descargar", "download_history": "Descargar historial", "regen": "Regenerar en este idioma"},
+    "简体中文": {"instruction": "请用简体中文回答。", "title": "欧盟AI法案合规导航", "desc": "描述你的AI系统或询问欧盟AI法案。", "placeholder": "描述你的AI系统...", "sources": "检索条款", "disclaimer": "仅提供初步指导，不构成法律建议。", "generating": "生成中...", "clear": "清除", "download_answer": "下载回答", "download_history": "下载历史", "regen": "用当前语言重新生成"},
+    "繁體中文": {"instruction": "請用繁體中文回答。", "title": "歐盟AI法案合規導航", "desc": "描述你的AI系統或詢問歐盟AI法案。", "placeholder": "描述你的AI系統...", "sources": "檢索條款", "disclaimer": "僅提供初步指導。", "generating": "生成中...", "clear": "清除", "download_answer": "下載回答", "download_history": "下載歷史", "regen": "用當前語言重新生成"},
 }
 
 def cosine_sim(a, b):
@@ -88,11 +77,8 @@ def extract_legal_references(query):
 
 def auto_token_budget(query, refs, base=6000):
     budget = base
-    if refs["count"] >= 2:
-        budget = 10000
-    long_keywords = ["obligations", "requirements", "prohibited", "classification", "transparency", "compliance"]
-    if any(kw in query.lower() for kw in long_keywords):
-        budget = max(budget, 8000)
+    if refs["count"] >= 2: budget = 10000
+    if any(kw in query.lower() for kw in ["obligations","requirements","prohibited","classification","transparency","compliance"]): budget = max(budget, 8000)
     return budget
 
 def apply_token_budget(items, budget=6000):
@@ -151,25 +137,34 @@ with st.sidebar:
     st.markdown("### ⚖️ EU AI Act Navigator")
     lang = st.selectbox("Language / 语言", list(LANGS.keys()), index=0)
     top_k = st.selectbox("Retrieval count", [5, 8, 10, 15], index=2)
-    st.caption("Token budget auto-adjusts based on query complexity")
+    st.caption("Token budget auto-adjusts by query complexity")
     st.markdown("---")
     st.caption(f"Records: {len(store)} | LLM: GPT-4o-mini")
     st.markdown("---")
     L = LANGS[lang]
-    if st.button(f"🗑 {L['clear']}", use_container_width=True):
-        st.session_state.messages = []
-        st.rerun()
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button(f"🗑 {L['clear']}", use_container_width=True):
+            st.session_state.messages = []
+            st.rerun()
+    with c2:
+        if st.session_state.get("messages"):
+            history_text = ""
+            for msg in st.session_state.messages:
+                role = "Q" if msg["role"] == "user" else "A"
+                history_text += f"[{role}] {msg['content']}\n\n"
+            st.download_button(f"📥 {L['download_history']}", history_text, "chat_history.md", use_container_width=True)
     st.markdown("---")
     quick = {
-        "⚡ High-risk classification": "What does Article 6 say about high-risk AI classification?",
-        "📋 HR screening tool": "An AI system that screens job applicants' CVs and ranks candidates.",
-        "📜 Provider obligations": "What obligations do providers of high-risk AI systems have?",
-        "📎 Annex III list": "What AI systems are listed in Annex III?",
+        "⚡ High-risk": "What does Article 6 say about high-risk AI classification?",
+        "📋 HR tool": "An AI system that screens job applicants' CVs and ranks candidates.",
+        "📜 Obligations": "What obligations do providers of high-risk AI systems have?",
+        "📎 Annex III": "What AI systems are listed in Annex III?",
         "🔍 Transparency": "What transparency requirements apply to AI systems?",
-        "🚫 Prohibited practices": "What AI practices are prohibited under the EU AI Act?",
+        "🚫 Prohibited": "What AI practices are prohibited under the EU AI Act?",
         "🏥 Medical AI": "A machine learning model that analyzes chest X-rays to detect pneumonia.",
-        "🎯 Biometrics + Annex III": "Does my biometric identification system fall under Annex III?",
-        "⚙️ Article 9 risk mgmt": "What does Article 9 require for risk management?",
+        "🎯 Biometrics": "Does my biometric identification system fall under Annex III?",
+        "⚙️ Article 9": "What does Article 9 require for risk management?",
     }
     for label, q in quick.items():
         if st.button(label, use_container_width=True):
@@ -182,19 +177,31 @@ st.write(L["desc"])
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# ---- Render chat history with custom bubbles ----
+# ---- Render history ----
 for idx, msg in enumerate(st.session_state.messages):
     if msg["role"] == "user":
         st.markdown(f'<div class="user-msg"><div class="user-bubble">{msg["content"]}</div></div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div class="bot-msg"><div class="bot-bubble">', unsafe_allow_html=True)
         st.markdown(msg["content"])
+        col_a, col_b, col_c = st.columns([1, 1, 6])
+        with col_a:
+            st.download_button(f"📥 {L['download_answer']}", msg["content"], f"answer_{idx}.md", key=f"dl_{idx}", use_container_width=True)
+        with col_b:
+            if st.button(f"🔄 {L['regen']}", key=f"regen_{idx}", use_container_width=True):
+                user_q = None
+                for j in range(idx-1, -1, -1):
+                    if st.session_state.messages[j]["role"] == "user":
+                        user_q = st.session_state.messages[j]["content"]
+                        break
+                if user_q:
+                    st.session_state.messages = st.session_state.messages[:idx]
+                    st.session_state["pending_query"] = user_q
+                    st.rerun()
         if msg.get("sources"):
             with st.expander(f"📄 {L['sources']}", expanded=False):
                 st.markdown(msg["sources"])
         if msg.get("meta_info"):
             st.caption(msg["meta_info"])
-        st.markdown('</div></div>', unsafe_allow_html=True)
 
 # ---- Input ----
 user_input = st.chat_input(L["placeholder"])
@@ -204,20 +211,19 @@ if st.session_state.get("pending_query"):
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     st.markdown(f'<div class="user-msg"><div class="user-bubble">{user_input}</div></div>', unsafe_allow_html=True)
-
     t0 = time.time()
     with st.spinner(L["generating"]):
         answer, sources_md, route, n_prov, used_tok, budget = run_query(user_input, lang, top_k)
     t_total = time.time() - t0
-
-    st.markdown(f'<div class="bot-msg"><div class="bot-bubble">', unsafe_allow_html=True)
     st.markdown(answer)
     meta_info = f"{route} | ⏱ {t_total:.1f}s | {n_prov} provisions (~{used_tok} tokens, budget: {budget})"
     st.caption(meta_info)
+    col_a, col_b, col_c = st.columns([1, 1, 6])
+    with col_a:
+        new_idx = len(st.session_state.messages)
+        st.download_button(f"📥 {L['download_answer']}", answer, f"answer_{new_idx}.md", key=f"dl_{new_idx}", use_container_width=True)
     with st.expander(f"📄 {L['sources']}", expanded=False):
         st.markdown(sources_md)
-    st.markdown('</div></div>', unsafe_allow_html=True)
-
     st.session_state.messages.append({"role": "assistant", "content": answer, "sources": sources_md, "meta_info": meta_info})
 
 st.caption(f"⚠️ {L['disclaimer']}")
