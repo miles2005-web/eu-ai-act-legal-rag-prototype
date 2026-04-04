@@ -7,11 +7,121 @@ A RAG-based compliance assessment tool for the EU Artificial Intelligence Act (R
 ## What It Does
 
 1. **Risk Classification** — Input an AI system description → receive risk tier (Unacceptable / High-Risk / Limited / Minimal) with article citations
-2. **Obligation Mapping** — Outputs specific compliance requirements with article references
-3. **Cross-Regulatory Analysis** — Identifies overlapping obligations from GDPR, product safety, and cybersecurity frameworks
-4. **Source Transparency** — Every answer cites specific articles, recitals, and annexes
-5. **Smart Routing** — Automatically detects legal references (Article, Annex, Recital) in queries for precision metadata-filtered retrieval
+1. **Obligation Mapping** — Outputs specific compliance requirements with article references
+1. **Cross-Regulatory Analysis** — Identifies overlapping obligations from GDPR, product safety, and cybersecurity frameworks
+1. **Source Transparency** — Every answer cites specific articles, recitals, and annexes
+1. **Smart Routing** — Automatically detects legal references (Article, Annex, Recital) in queries for precision metadata-filtered retrieval
 
 ## Technical Architecture
+
+```
+User Input
+    → Self-Query Router (regex-based legal reference detection)
+    → [Metadata Filter / Full Vector Search]
+    → Dynamic Token Budget (auto-adjusts by query complexity)
+    → GPT-4o-mini Structured Compliance Assessment
+```
+
+|Component       |Technology                                             |
+|----------------|-------------------------------------------------------|
+|Document Parsing|pypdf + legal-structure-aware chunking                 |
+|Embeddings      |OpenAI text-embedding-3-small (1536 dim) via OpenRouter|
+|Vector Store    |JSON-based cosine similarity search (3230 records)     |
+|Retrieval       |Self-Query routing + dynamic token budget              |
+|LLM             |GPT-4o-mini via OpenRouter                             |
+|Frontend        |Streamlit (chat interface)                             |
+
+## Key Features
+
+- **Chat Interface** — Conversational UI with user messages right-aligned
+- **6 Languages** — English, French, German, Spanish, Simplified Chinese, Traditional Chinese
+- **Self-Query Routing** — Mentions of “Article 6”, “Annex III”, etc. trigger metadata-filtered search
+- **Dynamic Token Budget** — Auto-adjusts context window (6K–10K tokens) based on query complexity
+- **Quick Query Buttons** — Pre-built scenarios for common compliance questions
+- **Download Answers** — Export individual answers or full chat history as Markdown
+- **Regenerate in New Language** — Switch language and regenerate any previous answer
+
+## Screenshots
+
+![Home screen](screenshots/home.png)
+![Article query example](screenshots/article-query.png)
+![Obligations query example](screenshots/obligations-query.png)
+
+## Repository Structure
+
+```
+legal-rag/
+├── app_chroma.py          # Main Streamlit app (chat UI + RAG pipeline)
+├── run_pipeline_chroma.py # Embedding generation + ChromaDB ingestion
+├── vector_store.json      # Pre-computed embeddings (3230 chunks)
+├── requirements.txt       # Python dependencies
+├── src/
+│   ├── ingest.py          # Document parsing (PDF/TXT → plain text)
+│   └── legal_chunks.py    # Legal-structure-aware chunking + metadata
+├── eval/
+│   └── golden_queries.json
+├── scripts/
+│   └── evaluate_retrieval.py
+└── data/
+    ├── raw/               # Source legal documents (PDF)
+    └── parsed/            # Extracted plain text
+```
+
+## How to Run Locally
+
+```bash
+git clone https://github.com/miles2005-web/eu-ai-act-legal-rag-prototype.git
+cd eu-ai-act-legal-rag-prototype
+python3.12 -m venv venv
+source venv/bin/activate
+pip install streamlit openai chromadb pypdf
+export OPENROUTER_API_KEY="your-key-here"
+streamlit run app_chroma.py
+```
+
+## Adding New Legal Documents
+
+1. Place PDF files in `data/raw/`
+1. Run `python src/ingest.py` to parse
+1. Run `python run_pipeline_chroma.py` to generate embeddings
+1. Export updated vector store:
+
+```bash
+python -c "
+import json, chromadb
+db = chromadb.PersistentClient(path='./chroma_db')
+col = db.get_collection('eu_ai_act')
+data = col.get(include=['documents','metadatas','embeddings'])
+export = []
+for i in range(len(data['ids'])):
+    emb = data['embeddings'][i]
+    if hasattr(emb, 'tolist'): emb = emb.tolist()
+    export.append({'id':data['ids'][i],'document':data['documents'][i],'metadata':data['metadatas'][i],'embedding':[round(x,5) for x in emb]})
+with open('vector_store.json','w') as f:
+    json.dump(export, f, separators=(',',':'))
+print(f'Exported {len(export)} records')
+"
+```
+
+1. Push updated `vector_store.json` to GitHub
+
+## Example Questions
+
+- “What does Article 6 say about high-risk AI classification?”
+- “An AI system that screens job applicants’ CVs and ranks candidates.”
+- “What obligations do providers of high-risk AI systems have?”
+- “What AI systems are listed in Annex III?”
+- “What transparency requirements apply to AI systems?”
+- “What AI practices are prohibited under the EU AI Act?”
+- “Does my biometric identification system fall under Annex III?”
+- “What does Article 9 require for risk management?”
+
+## Background
+
+Built by a law student at Jilin University (China) with hands-on experience in legal RAG systems and internships spanning capital markets (King & Wood Mallesons), securities regulation (Jilin Provincial CSRC), and tech law. This project demonstrates the intersection of legal expertise and technical capability in AI governance, developed as part of a UCL LLM (Technology Law) application.
+
+## Disclaimer
+
+This tool provides preliminary guidance only and does not constitute legal advice. Always consult qualified legal counsel for compliance decisions.
 
 
