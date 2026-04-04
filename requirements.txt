@@ -1,2 +1,4 @@
-streamlit>=1.44,<2.0
-pypdf>=4.2,<6.0
+streamlit>=1.30.0
+openai>=2.0.0
+chromadb>=1.0.0
+pypdf>=4.0.0
