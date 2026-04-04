@@ -1,6 +1,5 @@
-import os, time, re, streamlit as st
+import os, time, re, json, math, streamlit as st
 from openai import OpenAI
-import chromadb
 
 st.set_page_config(page_title="EU AI Act Compliance Navigator", page_icon="⚖️", layout="wide")
 st.title("⚖️ EU AI Act Compliance Navigator")
@@ -8,12 +7,56 @@ st.write("Describe your AI system or ask about the EU AI Act. Mention specific a
 
 api_key = os.environ.get("OPENROUTER_API_KEY", "")
 if not api_key:
-    st.error("Set OPENROUTER_API_KEY before running.")
+    api_key = st.secrets.get("OPENROUTER_API_KEY", "")
+if not api_key:
+    st.error("Set OPENROUTER_API_KEY.")
     st.stop()
 
 client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
-db = chromadb.PersistentClient(path="./chroma_db")
-col = db.get_collection("eu_ai_act")
+
+@st.cache_data
+def load_vectors():
+    with open("vector_store.json") as f:
+        return json.load(f)
+
+store = load_vectors()
+
+def cosine_sim(a, b):
+    dot = sum(x*y for x,y in zip(a,b))
+    na = math.sqrt(sum(x*x for x in a))
+    nb = math.sqrt(sum(x*x for x in b))
+    if na == 0 or nb == 0:
+        return 0.0
+    return dot / (na * nb)
+
+def search(query_emb, top_k=5, where=None):
+    results = []
+    for item in store:
+        if where:
+            match = False
+            for key, cond in where.items():
+                if key == "$or":
+                    for c in cond:
+                        for mk, mv in c.items():
+                            if isinstance(mv, dict):
+                                val = mv.get("$eq","")
+                            else:
+                                val = mv
+                            if val and val in str(item["metadata"].get(mk,"")):
+                                match = True
+                else:
+                    if isinstance(cond, dict):
+                        val = cond.get("$eq","")
+                    else:
+                        val = cond
+                    if val and val in str(item["metadata"].get(key,"")):
+                        match = True
+            if not match:
+                continue
+        sim = cosine_sim(query_emb, item["embedding"])
+        results.append({"doc": item["document"], "meta": item["metadata"], "score": sim})
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return results[:top_k]
 
 def extract_legal_references(query):
     refs = {"has_references": False}
@@ -34,16 +77,16 @@ def extract_legal_references(query):
 def estimate_tokens(text):
     return len(text) // 4
 
-def apply_token_budget(docs, metas, dists, budget):
-    sel_d, sel_m, sel_dist = [], [], []
+def apply_token_budget(items, budget):
+    selected = []
     total = 0
-    for doc, meta, dist in zip(docs, metas, dists):
-        t = estimate_tokens(doc)
-        if total + t > budget and sel_d:
+    for item in items:
+        t = estimate_tokens(item["doc"])
+        if total + t > budget and selected:
             break
-        sel_d.append(doc); sel_m.append(meta); sel_dist.append(dist)
+        selected.append(item)
         total += t
-    return sel_d, sel_m, sel_dist, total
+    return selected, total
 
 def highlight_terms(text, query):
     keywords = set()
@@ -62,11 +105,10 @@ with st.sidebar:
     st.header("Settings")
     top_k = st.slider("Initial retrieval count", 3, 20, 10)
     token_budget = st.slider("Context token budget", 2000, 12000, 6000, step=1000)
-    similarity_cutoff = st.slider("Similarity cutoff (distance)", 0.5, 2.0, 1.2, step=0.1)
     show_routing = st.checkbox("Show Self-Query routing info", value=True)
     st.markdown("---")
     st.header("System Info")
-    st.write(f"Records: {col.count()}")
+    st.write(f"Records: {len(store)}")
     st.write("Embedding: text-embedding-3-small")
     st.write("LLM: GPT-4o-mini via OpenRouter")
     st.markdown("---")
@@ -120,29 +162,12 @@ if st.button("Analyze", type="primary") and question.strip():
         st.info(route_msg)
     with st.spinner("Retrieving provisions..."):
         qr = client.embeddings.create(model="openai/text-embedding-3-small", input=question)
-        query_args = {"query_embeddings": [qr.data[0].embedding], "n_results": top_k}
-        if where_filter:
-            query_args["where"] = where_filter
-        try:
-            results = col.query(**query_args)
-        except Exception:
-            results = col.query(query_embeddings=[qr.data[0].embedding], n_results=top_k)
-            if show_routing:
-                st.warning("Metadata filter failed, fell back to vector search.")
+        query_emb = qr.data[0].embedding
+        results = search(query_emb, top_k=top_k, where=where_filter)
     t_retrieve = time.time() - t0
-    docs = results["documents"][0]
-    metas = results["metadatas"][0]
-    dists = results["distances"][0] if "distances" in results else [0.0]*len(docs)
-    filtered = [(d, m, dist) for d, m, dist in zip(docs, metas, dists) if dist <= similarity_cutoff]
-    if not filtered:
-        filtered = [(docs[0], metas[0], dists[0])] if docs else []
-    docs_f = [x[0] for x in filtered]
-    metas_f = [x[1] for x in filtered]
-    dists_f = [x[2] for x in filtered]
-    docs_b, metas_b, dists_b, used_tokens = apply_token_budget(docs_f, metas_f, dists_f, token_budget)
+    budgeted, used_tokens = apply_token_budget(results, token_budget)
     context = "\n\n---\n\n".join([
-        f"[{metas_b[i].get('canonical_citation','N/A')}]\n{doc}"
-        for i, doc in enumerate(docs_b)
+        f"[{item['meta'].get('canonical_citation','N/A')}]\n{item['doc']}" for item in budgeted
     ])
     with st.spinner("Generating compliance assessment..."):
         llm_response = client.chat.completions.create(
@@ -167,15 +192,13 @@ if st.button("Analyze", type="primary") and question.strip():
     st.session_state["history"].append({"time": time.strftime("%H:%M"), "query": question})
     st.subheader("Compliance Assessment")
     st.markdown(answer)
-    st.caption(
-        f"Retrieval: {t_retrieve:.1f}s | Total: {t_total:.1f}s | "
-        f"Retrieved: {len(docs)} → After cutoff: {len(docs_f)} → After budget: {len(docs_b)} (~{used_tokens} tokens)"
-    )
+    st.caption(f"Retrieval: {t_retrieve:.1f}s | Total: {t_total:.1f}s | Provisions: {len(budgeted)} (~{used_tokens} tokens)")
     st.markdown("---")
     st.subheader("Retrieved Source Provisions")
-    for i, (doc, meta, dist) in enumerate(zip(docs_b, metas_b, dists_b)):
+    for i, item in enumerate(budgeted):
+        meta = item["meta"]
         citation = meta.get("canonical_citation") or meta.get("article_number") or "N/A"
-        with st.expander(f"[{i+1}] {citation} | dist: {dist:.3f}", expanded=False):
+        with st.expander(f"[{i+1}] {citation} | sim: {item['score']:.3f}", expanded=False):
             cols = st.columns(3)
             with cols[0]:
                 if meta.get("article_number"): st.caption(f"Article: {meta['article_number']}")
@@ -183,6 +206,6 @@ if st.button("Analyze", type="primary") and question.strip():
                 if meta.get("annex_ref"): st.caption(f"Annex: {meta['annex_ref']}")
             with cols[2]:
                 if meta.get("recital_ref"): st.caption(f"Recital: {meta['recital_ref']}")
-            st.markdown(highlight_terms(doc, question))
+            st.markdown(highlight_terms(item["doc"], question))
     st.markdown("---")
     st.caption("⚠️ This tool provides preliminary guidance only and does not constitute legal advice.")
