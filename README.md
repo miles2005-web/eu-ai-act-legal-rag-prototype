@@ -14,6 +14,8 @@ A RAG-based compliance assessment tool for the EU Artificial Intelligence Act (R
 
 ## Technical Architecture
 
+![System Architecture](screenshots/architecture.png)
+
 ```
 User Input
     → Self-Query Router (regex-based legal reference detection)
