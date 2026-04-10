@@ -33,6 +33,22 @@ User Input
 |LLM             |GPT-4o-mini via OpenRouter                             |
 |Frontend        |Streamlit (chat interface)                             |
 
+**Why legal-structure-aware chunking?** Standard RAG systems split text by 
+fixed token length. EU AI Act provisions have hierarchical dependencies — 
+Article 6's classification rules reference Annex III's high-risk list, 
+which in turn triggers obligations spread across Articles 9–14. Fixed-length 
+splitting severs these connections. The chunker in `src/legal_chunks.py` 
+respects Chapter, Section, Article, and Annex boundaries, preserving the 
+legal logic each chunk carries.
+
+**Why Self-Query routing instead of pure semantic search?** Annex III 
+(high-risk AI system categories) and Annex IV (technical documentation 
+requirements) are semantically similar in embedding space — same legal 
+register, similar structure — but their legal consequences are mutually 
+exclusive. Semantic-only retrieval conflates them. The regex router detects 
+explicit legal references and applies metadata filters before vector search, 
+eliminating this class of error for direct citation queries.
+
 ## Key Features
 
 - **Chat Interface** — Conversational UI with user messages right-aligned
@@ -120,7 +136,22 @@ print(f'Exported {len(export)} records')
 
 ## Background
 
-Built by a law student at Jilin University (China) with hands-on experience in legal RAG systems and internships spanning capital markets (King & Wood Mallesons), securities regulation (Jilin Provincial CSRC), and tech law. This project demonstrates the intersection of legal expertise and technical capability in AI governance, developed as part of a UCL LLM (Technology Law) application.
+The EU AI Act (Regulation 2024/1689) enters full enforcement on 2 August 2026. 
+With 113 articles, 180 recitals, and 13 annexes, it presents a concrete 
+navigability problem: organisations need to determine whether their AI system 
+is high-risk, what obligations apply, and where exactly those obligations 
+are located across a complex legislative structure.
+
+This tool is my attempt to make that structure computationally navigable — 
+not as a technical demonstration, but as a substantive question about how 
+regulatory frameworks can be embedded into retrieval systems without 
+overclaiming what those systems can deliver.
+
+Built by a law student at Jilin University (Changchun, China), combining 
+internship experience in capital markets law (King & Wood Mallesons, Shenzhen), 
+securities regulation (Jilin Provincial CSRC), and technology law with 
+prior work building legal RAG systems using Ollama and DeepSeek. Developed 
+as part of a UCL LLM (Technology Law) application.
 
 ## Disclaimer
 
