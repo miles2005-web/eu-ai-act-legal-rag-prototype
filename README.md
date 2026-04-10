@@ -4,6 +4,14 @@ A RAG-based compliance assessment tool for the EU Artificial Intelligence Act (R
 
 **Live Demo:** [eu-ai-act-legal-rag-prototype.streamlit.app](https://eu-ai-act-legal-rag-prototype-hgryem2gsyrmyz7m6tda6c.streamlit.app)
 
+## External Showcase
+
+To present the project in a public evaluation setting, this prototype was submitted to Hack Trek 2026 on Devpost.
+
+This submission reflects the project’s transition from a private prototype to a publicly demonstrable legal-tech tool for EU AI Act compliance analysis.
+
+- Devpost submission: https://devpost.com/software/ai-compliance-copilot-for-the-eu-ai-act
+- Demo video: https://youtu.be/H4M3oPX7sz4
 ## What It Does
 
 1. **Risk Classification** — Input an AI system description → receive risk tier (Unacceptable / High-Risk / Limited / Minimal) with article citations
