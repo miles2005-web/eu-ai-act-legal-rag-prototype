@@ -142,6 +142,44 @@ print(f'Exported {len(export)} records')
 - “Does my biometric identification system fall under Annex III?”
 - “What does Article 9 require for risk management?”
 
+## Legal Documents Coverage
+
+**Primary Legislation (EU AI Act)**
+
+| Document | Notes |
+|---|---|
+| EU AI Act — Full Text (Regulation 2024/1689) | Articles 1–113 |
+| EU AI Act — Recitals 1–180 | Indexed separately for precision retrieval |
+| EU AI Act — Annexes I–XIII | Indexed separately; Annex III (high-risk list) and Annex IV (technical documentation) treated as distinct retrieval targets |
+
+**Cross-Regulatory Framework**
+
+| Document | Relevance |
+|---|---|
+| GDPR (Regulation 2016/679) | Data governance obligations intersecting high-risk AI systems |
+| Cyber Resilience Act (Regulation 2024/2847) | Cybersecurity requirements cross-referenced in AI Act |
+| Product Liability Directive (2024/2853) | Liability framework for AI-embedded products |
+| AI Liability Directive — Proposal (COM/2022/496) | Proposed civil liability regime for AI systems |
+| Machinery Regulation (2023/1230) | Safety requirements for AI integrated into machinery |
+
+**Official Guidance**
+
+| Document | Source |
+|---|---|
+| EU AI Act FAQ / Implementation Guidelines | European Commission |
+| Codes of Practice for General-Purpose AI | EU AI Office |
+| AI Act Compliance Checker Flowchart v1.0 (Updated July 2025) | Future of Life Institute — decision tree mapping entity types, risk classification, and obligation triggers across Articles 5, 6, 25, 50, 51 |
+
+**Academic Sources**
+
+| Document | Source |
+|---|---|
+| "Truly Risk-Based Regulation of Artificial Intelligence: How to Implement the EU's AI Act" (Working Paper No. 101) | Martin Ebers — Stanford–Vienna Transatlantic Technology Law Forum |
+| "Interplay between the AI Act and the EU Digital Legislative Framework" | European Parliament, ITRE Committee Study |
+| "Systemic Data Bias in Real-World AI Systems: Technical Failures, Legal Gaps, and the Limits of the EU AI Act" | Falelakis, Dimara & Anagnostopoulos — MDPI *Information* |
+
+**Total: 14 documents → 3,230 indexed passages**
+
 ## Background
 
 The EU AI Act (Regulation 2024/1689) enters full enforcement on 2 August 2026. 
