@@ -4,14 +4,6 @@ A RAG-based compliance assessment tool for the EU Artificial Intelligence Act (R
 
 **Live Demo:** [eu-ai-act-legal-rag-prototype.streamlit.app](https://eu-ai-act-legal-rag-prototype-hgryem2gsyrmyz7m6tda6c.streamlit.app)
 
-## External Showcase
-
-To present the project in a public evaluation setting, this prototype was submitted to Hack Trek 2026 on Devpost.
-
-This submission reflects the project’s transition from a private prototype to a publicly demonstrable legal-tech tool for EU AI Act compliance analysis.
-
-- Devpost submission: https://devpost.com/software/ai-compliance-copilot-for-the-eu-ai-act
-- Demo video: https://youtu.be/H4M3oPX7sz4
 ## What It Does
 
 1. **Risk Classification** — Input an AI system description → receive risk tier (Unacceptable / High-Risk / Limited / Minimal) with article citations
@@ -36,7 +28,7 @@ User Input
 |----------------|-------------------------------------------------------|
 |Document Parsing|pypdf + legal-structure-aware chunking                 |
 |Embeddings      |OpenAI text-embedding-3-small (1536 dim) via OpenRouter|
-|Vector Store    |JSON-based cosine similarity search (3230 records)     |
+|Vector Store    |ChromaDB (local pipeline) + JSON export (deployed app) |
 |Retrieval       |Self-Query routing + dynamic token budget              |
 |LLM             |GPT-4o-mini via OpenRouter                             |
 |Frontend        |Streamlit (chat interface)                             |
@@ -73,10 +65,18 @@ eliminating this class of error for direct citation queries.
 ![Article query example](screenshots/article-query.png)
 ![Obligations query example](screenshots/obligations-query.png)
 
+## External Showcase
+
+To present the project in a public evaluation setting, this prototype was submitted to Hack Trek 2026 on Devpost.
+
+This submission reflects the project’s transition from a private prototype to a publicly demonstrable legal-tech tool for EU AI Act compliance analysis.
+
+- Devpost submission: https://devpost.com/software/ai-compliance-copilot-for-the-eu-ai-act
+- Demo video: https://youtu.be/H4M3oPX7sz4
+
 ## Repository Structure
 
 ```
-legal-rag/
 ├── app_chroma.py          # Main Streamlit app (chat UI + RAG pipeline)
 ├── run_pipeline_chroma.py # Embedding generation + ChromaDB ingestion
 ├── vector_store.json      # Pre-computed embeddings (3230 chunks)
@@ -188,16 +188,11 @@ navigability problem: organisations need to determine whether their AI system
 is high-risk, what obligations apply, and where exactly those obligations 
 are located across a complex legislative structure.
 
-This tool is my attempt to make that structure computationally navigable — 
-not as a technical demonstration, but as a substantive question about how 
-regulatory frameworks can be embedded into retrieval systems without 
-overclaiming what those systems can deliver.
+This tool is an attempt to make that structure computationally navigable — 
+a question at the intersection of regulatory law and retrieval system design.
 
-Built by a law student at Jilin University (Changchun, China), combining 
-internship experience in capital markets law (King & Wood Mallesons, Shenzhen), 
-securities regulation (Jilin Provincial CSRC), and technology law with 
-prior work building legal RAG systems using Ollama and DeepSeek. Developed 
-as part of a UCL LLM (Technology Law) application.
+Built by a law student at Jilin University (Changchun, China).
+
 
 ## Disclaimer
 
