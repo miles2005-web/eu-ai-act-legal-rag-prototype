@@ -34,7 +34,7 @@ EU AI Act Compliance Navigator 是一个基于 RAG（Retrieval-Augmented Generat
 
 |指标                  |当前值                       |
 |--------------------|--------------------------|
-|法律文档数               |约 5 份（EU AI Act 全文 + 交叉法规）|
+|法律文档数               |14 份（EU AI Act 全文 + 交叉法规 + 学术论文）|
 |向量化 chunks          |3230 条                    |
 |Embedding 维度        |1536                      |
 |vector_store.json 大小|~43MB（精度截短至 5 位小数）        |
