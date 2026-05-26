@@ -55,10 +55,10 @@ def search_store(query_emb, top_k=10, where=None):
                     for c in cond:
                         for mk, mv in c.items():
                             val = mv.get("$eq","") if isinstance(mv, dict) else mv
-                            if val and val in str(item["metadata"].get(mk,"")): match = True
+                            if val and str(item["metadata"].get(mk,"")) == str(val): match = True
                 else:
                     val = cond.get("$eq","") if isinstance(cond, dict) else cond
-                    if val and val in str(item["metadata"].get(key,"")): match = True
+                    if val and str(item["metadata"].get(key,"")) == str(val): match = True
             if not match: continue
         sim = cosine_sim(query_emb, item["embedding"])
         results.append({"doc": item["document"], "meta": item["metadata"], "score": sim})
@@ -68,11 +68,11 @@ def search_store(query_emb, top_k=10, where=None):
 def extract_legal_references(query):
     refs = {"has_references": False, "count": 0}
     art = re.search(r'Article\s+(\d+)', query, re.IGNORECASE)
-    if art: refs["article"] = f"Article {art.group(1)}"; refs["has_references"] = True; refs["count"] += 1
+    if art: refs["article"] = art.group(1); refs["article_label"] = f"Article {art.group(1)}"; refs["has_references"] = True; refs["count"] += 1
     anx = re.search(r'Annex\s+(I{1,3}|IV|V|VI|VII|VIII|IX|X|XI|XII|XIII)', query, re.IGNORECASE)
-    if anx: refs["annex"] = f"Annex {anx.group(1)}"; refs["has_references"] = True; refs["count"] += 1
+    if anx: refs["annex"] = anx.group(1).upper(); refs["annex_label"] = f"Annex {refs['annex']}"; refs["has_references"] = True; refs["count"] += 1
     rec = re.search(r'Recital\s+(\d+)', query, re.IGNORECASE)
-    if rec: refs["recital"] = f"Recital {rec.group(1)}"; refs["has_references"] = True; refs["count"] += 1
+    if rec: refs["recital"] = rec.group(1); refs["recital_label"] = f"Recital {rec.group(1)}"; refs["has_references"] = True; refs["count"] += 1
     return refs
 
 def auto_token_budget(query, refs, base=6000):
@@ -100,11 +100,14 @@ def run_query(prompt, lang_key, top_k):
         if refs.get("annex"): conditions.append({"annex_ref": {"$eq": refs["annex"]}})
         if refs.get("recital"): conditions.append({"recital_ref": {"$eq": refs["recital"]}})
         where_filter = conditions[0] if len(conditions) == 1 else {"$or": conditions}
-        detected = ", ".join(v for v in [refs.get("article"), refs.get("annex"), refs.get("recital")] if v)
+        detected = ", ".join(v for v in [refs.get("article_label"), refs.get("annex_label"), refs.get("recital_label")] if v)
         route = f"🎯 {detected}"
     budget = auto_token_budget(prompt, refs)
     qr = client.embeddings.create(model="openai/text-embedding-3-small", input=prompt)
     results = search_store(qr.data[0].embedding, top_k=top_k, where=where_filter)
+    if where_filter and not results:
+        results = search_store(qr.data[0].embedding, top_k=top_k, where=None)
+        route = "🔍 Vector search fallback"
     budgeted, used_tokens = apply_token_budget(results, budget=budget)
     context = "\n\n---\n\n".join([f"[{item['meta'].get('canonical_citation','N/A')}]\n{item['doc']}" for item in budgeted])
     llm_response = client.chat.completions.create(
