@@ -45,21 +45,29 @@ def cosine_sim(a, b):
     if na == 0 or nb == 0: return 0.0
     return dot / (na * nb)
 
+def metadata_value_matches(actual, condition):
+    if isinstance(condition, dict):
+        if "$eq" in condition:
+            return str(actual) == str(condition["$eq"])
+        return False
+    return str(actual) == str(condition)
+
+def metadata_matches_filter(metadata, where):
+    if not where:
+        return True
+    for key, condition in where.items():
+        if key == "$or":
+            if not isinstance(condition, list) or not any(metadata_matches_filter(metadata, c) for c in condition):
+                return False
+        elif not metadata_value_matches(metadata.get(key, ""), condition):
+            return False
+    return True
+
 def search_store(query_emb, top_k=10, where=None):
     results = []
     for item in store:
-        if where:
-            match = False
-            for key, cond in where.items():
-                if key == "$or":
-                    for c in cond:
-                        for mk, mv in c.items():
-                            val = mv.get("$eq","") if isinstance(mv, dict) else mv
-                            if val and str(item["metadata"].get(mk,"")) == str(val): match = True
-                else:
-                    val = cond.get("$eq","") if isinstance(cond, dict) else cond
-                    if val and str(item["metadata"].get(key,"")) == str(val): match = True
-            if not match: continue
+        if not metadata_matches_filter(item["metadata"], where):
+            continue
         sim = cosine_sim(query_emb, item["embedding"])
         results.append({"doc": item["document"], "meta": item["metadata"], "score": sim})
     results.sort(key=lambda x: x["score"], reverse=True)
@@ -107,7 +115,7 @@ def run_query(prompt, lang_key, top_k):
     results = search_store(qr.data[0].embedding, top_k=top_k, where=where_filter)
     if where_filter and not results:
         results = search_store(qr.data[0].embedding, top_k=top_k, where=None)
-        route = "🔍 Vector search fallback"
+        route = "Vector search fallback"
     budgeted, used_tokens = apply_token_budget(results, budget=budget)
     context = "\n\n---\n\n".join([f"[{item['meta'].get('canonical_citation','N/A')}]\n{item['doc']}" for item in budgeted])
     llm_response = client.chat.completions.create(
