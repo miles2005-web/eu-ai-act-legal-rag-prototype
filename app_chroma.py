@@ -29,6 +29,23 @@ def load_vectors():
 
 store = load_vectors()
 
+GDPR_SUPPLEMENTAL_QUERY = (
+    "GDPR personal data processing lawful basis transparency automated decision-making "
+    "data protection impact assessment Article 5 Article 6 Article 9 Article 13 "
+    "Article 14 Article 22 Article 35"
+)
+GDPR_TRIGGER_TERMS = [
+    "gdpr", "data protection", "personal data", "privacy", "biometric",
+    "recruitment", "employment", "hr", "candidate", "employee", "cv",
+    "resume", "candidates", "employees", "cvs", "resumes", "hiring",
+    "workplace", "招聘", "简历", "候选人", "员工", "人力资源", "个人数据",
+    "个人信息", "隐私", "生物识别", "工作场所",
+]
+GDPR_PREFERENCE_TERMS = [
+    "gdpr", "general data protection regulation", "regulation (eu) 2016/679",
+    "personal data", "data protection", "article 22", "article 35",
+]
+
 LANGS = {
     "English": {"instruction": "Respond in English.", "title": "EU AI Act Compliance Navigator", "desc": "Describe your AI system or ask about the EU AI Act.", "placeholder": "Describe your AI system...", "sources": "Retrieved provisions", "disclaimer": "This tool provides preliminary guidance only and does not constitute legal advice.", "generating": "Generating...", "clear": "Clear chat", "download_answer": "Download answer", "download_history": "Download history", "regen": "Regenerate in this language"},
     "Français": {"instruction": "Réponds en français.", "title": "Navigateur de conformité EU AI Act", "desc": "Décrivez votre système d'IA ou posez une question.", "placeholder": "Décrivez votre système d'IA...", "sources": "Dispositions", "disclaimer": "Orientations préliminaires uniquement.", "generating": "Génération...", "clear": "Effacer", "download_answer": "Télécharger", "download_history": "Télécharger l'historique", "regen": "Régénérer dans cette langue"},
@@ -63,15 +80,51 @@ def metadata_matches_filter(metadata, where):
             return False
     return True
 
+def text_for_item(item):
+    meta = item.get("metadata") or item.get("meta", {})
+    return " ".join(str(v) for v in [item.get("document", ""), *meta.values()]).lower()
+
+def should_run_gdpr_supplemental(query):
+    query_lower = query.lower()
+    for term in GDPR_TRIGGER_TERMS:
+        if re.search(r"[\u4e00-\u9fff]", term):
+            if term in query:
+                return True
+        elif re.search(r"\s", term):
+            if term in query_lower:
+                return True
+        elif re.search(rf"\b{re.escape(term)}\b", query_lower):
+            return True
+    return False
+
+def is_gdpr_related(item):
+    haystack = text_for_item(item)
+    return any(term in haystack for term in GDPR_PREFERENCE_TERMS)
+
 def search_store(query_emb, top_k=10, where=None):
     results = []
     for item in store:
         if not metadata_matches_filter(item["metadata"], where):
             continue
         sim = cosine_sim(query_emb, item["embedding"])
-        results.append({"doc": item["document"], "meta": item["metadata"], "score": sim})
+        results.append({"id": item.get("id"), "doc": item["document"], "meta": item["metadata"], "score": sim})
     results.sort(key=lambda x: x["score"], reverse=True)
     return results[:top_k]
+
+def dedupe_results(items):
+    seen, deduped = set(), []
+    for item in items:
+        key = item.get("id") or f"{item['meta'].get('source')}|{item['meta'].get('canonical_citation')}|{item['doc'][:80]}"
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
+
+def append_gdpr_route(route):
+    if route == "🔍 Vector search":
+        return "Vector search + GDPR supplemental retrieval"
+    return f"{route.replace('🎯 ', '')} + GDPR supplemental retrieval"
 
 def extract_legal_references(query):
     refs = {"has_references": False, "count": 0}
@@ -116,6 +169,13 @@ def run_query(prompt, lang_key, top_k):
     if where_filter and not results:
         results = search_store(qr.data[0].embedding, top_k=top_k, where=None)
         route = "Vector search fallback"
+    if should_run_gdpr_supplemental(prompt):
+        gdpr_qr = client.embeddings.create(model="openai/text-embedding-3-small", input=GDPR_SUPPLEMENTAL_QUERY)
+        gdpr_candidates = search_store(gdpr_qr.data[0].embedding, top_k=80, where=None)
+        gdpr_results = [item for item in gdpr_candidates if is_gdpr_related(item)][:6]
+        if gdpr_results:
+            results = dedupe_results(results + gdpr_results)
+            route = append_gdpr_route(route)
     budgeted, used_tokens = apply_token_budget(results, budget=budget)
     context = "\n\n---\n\n".join([f"[{item['meta'].get('canonical_citation','N/A')}]\n{item['doc']}" for item in budgeted])
     llm_response = client.chat.completions.create(
