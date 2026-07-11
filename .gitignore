@@ -1,9 +1,24 @@
+# Python environments
+venv/
 .venv/
 .venv312/
+
+# Python cache
+**pycache**/
 __pycache__/
 *.pyc
+
+# Local OS files
 .DS_Store
-README_old.md
-data/raw/
-data/parsed/
+
+# Chroma local database
+chroma_db/
+
+# Environment secrets
 .env
+
+# Local generated data
+data/raw/
+
+README_old.md
+data/parsed/
