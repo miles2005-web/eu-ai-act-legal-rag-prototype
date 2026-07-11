@@ -32,3 +32,4 @@ class AssessmentResult(SerializableModel):
     missing_fact_requirements: list[RuleRequirementResult] = field(
         default_factory=list
     )
+    assessment_run_id: str | None = None
