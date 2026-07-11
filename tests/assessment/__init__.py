@@ -1,0 +1,1 @@
+"""Assessment domain tests."""
