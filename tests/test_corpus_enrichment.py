@@ -22,6 +22,7 @@ class StructuredCitationTests(unittest.TestCase):
         article = parse_structured_citation("Article 2")
         paragraph = parse_structured_citation("Article 2(5)")
         point = parse_structured_citation("Article 4(1)(a)")
+        direct_point = parse_structured_citation("Article 23(a)")
 
         self.assertEqual(article.kind, CitationKind.ARTICLE)
         self.assertEqual(article.article_number, "2")
@@ -32,6 +33,9 @@ class StructuredCitationTests(unittest.TestCase):
         self.assertEqual(point.paragraph_number, "1")
         self.assertEqual(point.point_label, "a")
         self.assertEqual(point.canonical_citation, "Article 4(1)(a)")
+        self.assertIsNone(direct_point.paragraph_number)
+        self.assertEqual(direct_point.point_label, "a")
+        self.assertEqual(direct_point.canonical_citation, "Article 23(a)")
 
     def test_recital_and_annex_citations(self) -> None:
         recital = parse_structured_citation("recital 12")

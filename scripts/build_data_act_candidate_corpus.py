@@ -27,7 +27,7 @@ def main() -> None:
     parser.add_argument(
         "source",
         type=Path,
-        help="Prepared Data Act .txt or text-based .pdf source",
+        help="Prepared Data Act .txt, text-based .pdf, or EUR-Lex .html source",
     )
     parser.add_argument(
         "--output",

@@ -22,3 +22,6 @@ data/raw/
 
 README_old.md
 data/parsed/
+
+# Generated candidate corpus builds
+corpus_builds/

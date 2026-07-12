@@ -40,8 +40,11 @@ class StructuredCitation:
 
 _ARTICLE_CITATION = re.compile(
     r"^Article\s+(?P<article>\d+[a-z]?)"
-    r"(?:\s*\(\s*(?P<paragraph>\d+[a-z]?)\s*\))?"
-    r"(?:\s*\(\s*(?P<point>[a-z])\s*\))?$",
+    r"(?:"
+    r"\s*\(\s*(?P<paragraph>\d+[a-z]?)\s*\)"
+    r"(?:\s*\(\s*(?P<point>[a-z])\s*\))?"
+    r"|\s*\(\s*(?P<direct_point>[a-z])\s*\)"
+    r")?$",
     re.IGNORECASE,
 )
 _RECITAL_CITATION = re.compile(
@@ -72,7 +75,10 @@ def parse_structured_citation(citation: str) -> StructuredCitation:
         paragraph_number = _normalize_number(
             article_match.group("paragraph")
         )
-        point_label = _normalize_point(article_match.group("point"))
+        point_label = _normalize_point(
+            article_match.group("point")
+            or article_match.group("direct_point")
+        )
         canonical = f"Article {article_number}"
         if paragraph_number is not None:
             canonical += f"({paragraph_number})"
@@ -106,7 +112,7 @@ def parse_structured_citation(citation: str) -> StructuredCitation:
 
     raise ValueError(
         "unsupported citation; expected Article N, Article N(P), "
-        "Article N(P)(a), Recital N, or Annex N"
+        "Article N(P)(a), Article N(a), Recital N, or Annex N"
     )
 
 

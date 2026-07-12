@@ -19,6 +19,7 @@ from src.assessment.evidence.catalog import (
     load_legal_source_catalog,
 )
 from src.corpus_enrichment import enrich_chunk_metadata_v2
+from src.eurlex_html import preprocess_eurlex_data_act_html
 from src.ingest import parse_document
 from src.legal_chunks import normalize_legal_text
 
@@ -61,7 +62,7 @@ def build_data_act_candidate_records(
         path,
         source_catalog or load_legal_source_catalog(),
     )
-    text = parse_document(path)
+    text = _read_data_act_source(path)
     if not text.strip():
         raise DataActCandidateBuildError("Data Act source contains no text")
 
@@ -239,10 +240,6 @@ def _parse_article_chunks(
         nonlocal point_label, point_lines
         if point_label is None:
             return
-        if paragraph_number is None:
-            raise DataActCandidateBuildError(
-                f"Article {article_number} point ({point_label}) has no paragraph"
-            )
         chunks.append(
             _article_chunk(
                 source_name=source_name,
@@ -287,9 +284,18 @@ def _parse_article_chunks(
         if point_match:
             flush_point()
             if paragraph_number is None:
-                raise DataActCandidateBuildError(
-                    f"Article {article_number} contains a point before a paragraph"
-                )
+                if leading_lines:
+                    chunks.append(
+                        _article_chunk(
+                            source_name=source_name,
+                            article_number=article_number,
+                            article_title=article_title,
+                            text="\n".join(
+                                [article_heading, *leading_lines]
+                            ),
+                        )
+                    )
+                    leading_lines = []
             if paragraph_lines:
                 chunks.append(
                     _article_chunk(
@@ -413,12 +419,15 @@ def _resolve_data_act_source(
 ) -> LegalSource:
     if not path.is_file():
         raise FileNotFoundError(path)
-    if path.suffix.lower() not in {".txt", ".pdf"}:
+    if path.suffix.lower() not in {".txt", ".pdf", ".html", ".htm"}:
         raise DataActCandidateBuildError(
-            "Data Act candidate source must be a .txt or .pdf file"
+            "Data Act candidate source must be a .txt, .pdf, or EUR-Lex HTML file"
         )
-    alias = path.with_suffix(".txt").name
-    legal_source = source_catalog.resolve_alias(alias)
+    legal_source = source_catalog.resolve_alias(path.name)
+    alias = path.name
+    if legal_source is None and path.suffix.lower() in {".txt", ".pdf"}:
+        alias = path.with_suffix(".txt").name
+        legal_source = source_catalog.resolve_alias(alias)
     if legal_source is None:
         raise DataActCandidateBuildError(
             f"source filename {alias!r} is not catalogued"
@@ -428,6 +437,12 @@ def _resolve_data_act_source(
             f"source resolves to {legal_source.instrument_id}, not EU_DATA_ACT"
         )
     return legal_source
+
+
+def _read_data_act_source(path: Path) -> str:
+    if path.suffix.lower() in {".html", ".htm"}:
+        return preprocess_eurlex_data_act_html(path)
+    return parse_document(path)
 
 
 def _validate_candidate_records(records: list[dict[str, Any]]) -> None:
