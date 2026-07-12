@@ -21,6 +21,7 @@ class MissingInformation(SerializableModel):
     rule_version: str
     fact_path: str
     reason: MissingFactReason
+    framework: RegulatoryFramework = RegulatoryFramework.UNKNOWN
 
 
 @dataclass(slots=True)
@@ -29,6 +30,7 @@ class RuleVersionMetadata(SerializableModel):
 
     rule_id: str
     version: str
+    framework: RegulatoryFramework = RegulatoryFramework.UNKNOWN
 
 
 @dataclass(slots=True)
@@ -65,6 +67,7 @@ class AssessmentReport(SerializableModel):
     execution_failures: list[RuleExecutionFailure]
     report_version: str
     findings_by_framework: list[FrameworkFindings] = field(default_factory=list)
+    assessed_frameworks: list[RegulatoryFramework] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         for field_name in (

@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Any
 
 from src.assessment.facts import AssessmentFacts
+from src.assessment.frameworks import RegulatoryFramework
 from src.assessment.models import SerializableModel
 from src.assessment.rules.base import AssessmentRule
 
@@ -35,6 +36,7 @@ class RuleRequirementResult(SerializableModel):
     rule_version: str
     required_fact_paths: list[str]
     missing_facts: list[MissingFact] = field(default_factory=list)
+    framework: RegulatoryFramework = RegulatoryFramework.UNKNOWN
 
     @property
     def is_satisfied(self) -> bool:
@@ -70,6 +72,7 @@ class FactRequirementValidator:
             rule_version=rule.version,
             required_fact_paths=list(rule.required_fact_paths),
             missing_facts=missing_facts,
+            framework=rule.framework,
         )
 
     def _resolve_path(self, facts: AssessmentFacts, fact_path: str) -> Any:
@@ -90,4 +93,3 @@ class FactRequirementValidator:
         if isinstance(value, Enum) and value.value == "unknown":
             return MissingFactReason.UNKNOWN
         return None
-

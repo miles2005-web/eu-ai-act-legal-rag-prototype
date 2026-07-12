@@ -65,6 +65,9 @@ class AssessmentEngine:
         # Freeze rule ordering for the duration of this execution even if the
         # registry is changed elsewhere after the run begins.
         rules = self._registry.all()
+        assessed_frameworks = list(
+            dict.fromkeys(rule.framework for rule in rules)
+        )
         requirement_results = tuple(
             self._requirement_validator.validate(rule, facts) for rule in rules
         )
@@ -89,6 +92,7 @@ class AssessmentEngine:
                         rule_version=rule.version,
                         error_type=type(exc).__name__,
                         message=str(exc) or "Rule execution failed without a message",
+                        framework=rule.framework,
                     )
                 )
 
@@ -98,6 +102,7 @@ class AssessmentEngine:
             engine_version=self._engine_version,
             failures=failures,
             missing_fact_requirements=missing_fact_requirements,
+            assessed_frameworks=assessed_frameworks,
         )
 
     @staticmethod

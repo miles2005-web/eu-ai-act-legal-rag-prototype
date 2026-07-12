@@ -41,6 +41,10 @@ class AIActHighRiskEmploymentRuleTests(unittest.TestCase):
         )
         self.assertEqual(result.failures, [])
         self.assertEqual(result.missing_fact_requirements, [])
+        self.assertEqual(
+            result.assessed_frameworks,
+            [RegulatoryFramework.EU_AI_ACT],
+        )
         self.assertEqual(len(result.findings), 1)
         finding = result.findings[0]
         self.assertEqual(finding.framework, RegulatoryFramework.EU_AI_ACT)
@@ -79,6 +83,10 @@ class AIActHighRiskEmploymentRuleTests(unittest.TestCase):
         self.assertEqual(result.executed_rule_ids, [])
         self.assertEqual(result.failures, [])
         self.assertEqual(len(result.missing_fact_requirements), 1)
+        self.assertEqual(
+            result.missing_fact_requirements[0].framework,
+            RegulatoryFramework.EU_AI_ACT,
+        )
         missing = result.missing_fact_requirements[0].missing_facts
         self.assertEqual(len(missing), 1)
         self.assertEqual(

@@ -44,6 +44,14 @@ class _InvalidFrameworkRule(_LegacyCompatibleRule):
     framework = "GDPR"
 
 
+class _FailingGDPRRule(_LegacyCompatibleRule):
+    rule_id = "FAILING_GDPR"
+    framework = RegulatoryFramework.GDPR
+
+    def evaluate(self, facts: AssessmentFacts) -> Finding:
+        raise RuntimeError("test failure")
+
+
 class RegulatoryFrameworkMetadataTests(unittest.TestCase):
     def test_legacy_rule_and_finding_default_to_unknown(self) -> None:
         rule = _LegacyCompatibleRule()
@@ -59,6 +67,22 @@ class RegulatoryFrameworkMetadataTests(unittest.TestCase):
     def test_registry_rejects_non_enum_framework_metadata(self) -> None:
         with self.assertRaises(RuleDefinitionError):
             RuleRegistry([_InvalidFrameworkRule()])
+
+    def test_execution_failure_preserves_framework(self) -> None:
+        result = AssessmentEngine(
+            RuleRegistry([_FailingGDPRRule()])
+        ).run(AssessmentFacts())
+
+        self.assertEqual(result.findings, [])
+        self.assertEqual(len(result.failures), 1)
+        self.assertEqual(
+            result.failures[0].framework,
+            RegulatoryFramework.GDPR,
+        )
+        self.assertEqual(
+            result.failures[0].to_dict()["framework"],
+            "GDPR",
+        )
 
 
 if __name__ == "__main__":

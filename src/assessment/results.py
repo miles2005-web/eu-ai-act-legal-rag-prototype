@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from src.assessment.findings import Finding
+from src.assessment.frameworks import RegulatoryFramework
 from src.assessment.models import SerializableModel, utc_now
 from src.assessment.requirements import RuleRequirementResult
 
@@ -18,6 +19,7 @@ class RuleExecutionFailure(SerializableModel):
     rule_version: str
     error_type: str
     message: str
+    framework: RegulatoryFramework = RegulatoryFramework.UNKNOWN
 
 
 @dataclass(slots=True)
@@ -33,3 +35,4 @@ class AssessmentResult(SerializableModel):
         default_factory=list
     )
     assessment_run_id: str | None = None
+    assessed_frameworks: list[RegulatoryFramework] = field(default_factory=list)

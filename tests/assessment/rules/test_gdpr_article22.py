@@ -37,6 +37,10 @@ class GDPRArticle22RelevanceRuleTests(unittest.TestCase):
             ["GDPR_ARTICLE22_RELEVANCE"],
         )
         self.assertEqual(result.failures, [])
+        self.assertEqual(
+            result.assessed_frameworks,
+            [RegulatoryFramework.GDPR],
+        )
         self.assertEqual(len(result.findings), 1)
         finding = result.findings[0]
         self.assertEqual(finding.framework, RegulatoryFramework.GDPR)
@@ -75,6 +79,10 @@ class GDPRArticle22RelevanceRuleTests(unittest.TestCase):
         self.assertEqual(result.executed_rule_ids, [])
         self.assertEqual(result.failures, [])
         self.assertEqual(len(result.missing_fact_requirements), 1)
+        self.assertEqual(
+            result.missing_fact_requirements[0].framework,
+            RegulatoryFramework.GDPR,
+        )
         missing = result.missing_fact_requirements[0].missing_facts
         self.assertEqual(len(missing), 1)
         self.assertEqual(

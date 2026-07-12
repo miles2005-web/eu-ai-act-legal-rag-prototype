@@ -93,6 +93,9 @@ class ReportBuilder:
             execution_failures=deepcopy(assessment_result.failures),
             report_version=self._report_version,
             findings_by_framework=findings_by_framework,
+            assessed_frameworks=deepcopy(
+                assessment_result.assessed_frameworks
+            ),
         )
 
     def _build_framework_findings(
@@ -161,6 +164,7 @@ class ReportBuilder:
                         rule_version=requirement.rule_version,
                         fact_path=missing_fact.fact_path,
                         reason=missing_fact.reason,
+                        framework=requirement.framework,
                     )
                 )
         return missing_information
@@ -235,24 +239,43 @@ class ReportBuilder:
     def _build_rule_versions(
         assessment_result: AssessmentResult,
     ) -> list[RuleVersionMetadata]:
-        versions_by_rule: dict[str, str] = {}
+        versions_by_rule: dict[
+            str,
+            tuple[str, RegulatoryFramework],
+        ] = {}
         for finding in assessment_result.findings:
             if finding.rule_id and finding.rule_version:
-                versions_by_rule[finding.rule_id] = finding.rule_version
+                versions_by_rule[finding.rule_id] = (
+                    finding.rule_version,
+                    finding.framework,
+                )
         for failure in assessment_result.failures:
-            versions_by_rule[failure.rule_id] = failure.rule_version
+            versions_by_rule[failure.rule_id] = (
+                failure.rule_version,
+                failure.framework,
+            )
         for requirement in assessment_result.missing_fact_requirements:
-            versions_by_rule[requirement.rule_id] = requirement.rule_version
+            versions_by_rule[requirement.rule_id] = (
+                requirement.rule_version,
+                requirement.framework,
+            )
 
         metadata: list[RuleVersionMetadata] = []
         seen: set[str] = set()
         for rule_id in assessment_result.executed_rule_ids:
-            version = versions_by_rule.get(rule_id)
-            if version is None:
+            version_metadata = versions_by_rule.get(rule_id)
+            if version_metadata is None:
                 raise ReportBuildError(
                     f"executed rule {rule_id!r} has no version metadata"
                 )
-            metadata.append(RuleVersionMetadata(rule_id=rule_id, version=version))
+            version, framework = version_metadata
+            metadata.append(
+                RuleVersionMetadata(
+                    rule_id=rule_id,
+                    version=version,
+                    framework=framework,
+                )
+            )
             seen.add(rule_id)
         for requirement in assessment_result.missing_fact_requirements:
             if requirement.rule_id not in seen:
@@ -260,6 +283,7 @@ class ReportBuilder:
                     RuleVersionMetadata(
                         rule_id=requirement.rule_id,
                         version=requirement.rule_version,
+                        framework=requirement.framework,
                     )
                 )
                 seen.add(requirement.rule_id)

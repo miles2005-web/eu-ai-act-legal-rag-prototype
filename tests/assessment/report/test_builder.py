@@ -89,6 +89,14 @@ class ReportBuilderTests(unittest.TestCase):
             first_report.rule_versions[0].rule_id,
             "AI_ACT_HIGH_RISK_EMPLOYMENT",
         )
+        self.assertEqual(
+            first_report.rule_versions[0].framework,
+            RegulatoryFramework.EU_AI_ACT,
+        )
+        self.assertEqual(
+            first_report.assessed_frameworks,
+            [RegulatoryFramework.EU_AI_ACT],
+        )
         self.assertTrue(first_report.recommendations)
         json.dumps(first_report.to_dict())
 
@@ -111,6 +119,14 @@ class ReportBuilderTests(unittest.TestCase):
         self.assertEqual(len(report.findings_by_framework), 1)
         group = report.findings_by_framework[0]
         self.assertEqual(group.framework, RegulatoryFramework.GDPR)
+        self.assertEqual(
+            report.rule_versions[0].framework,
+            RegulatoryFramework.GDPR,
+        )
+        self.assertEqual(
+            report.assessed_frameworks,
+            [RegulatoryFramework.GDPR],
+        )
         self.assertEqual(
             [finding.finding_id for finding in group.findings],
             [report.findings[0].finding_id],
@@ -161,6 +177,10 @@ class ReportBuilderTests(unittest.TestCase):
             [RegulatoryFramework.EU_AI_ACT, RegulatoryFramework.GDPR],
         )
         self.assertEqual(
+            first_report.assessed_frameworks,
+            [RegulatoryFramework.GDPR, RegulatoryFramework.EU_AI_ACT],
+        )
+        self.assertEqual(
             [
                 finding.finding_id
                 for group in first_report.findings_by_framework
@@ -206,6 +226,14 @@ class ReportBuilderTests(unittest.TestCase):
         self.assertEqual(
             report.rule_versions[0].rule_id,
             "AI_ACT_HIGH_RISK_EMPLOYMENT",
+        )
+        self.assertEqual(
+            report.rule_versions[0].framework,
+            RegulatoryFramework.EU_AI_ACT,
+        )
+        self.assertEqual(
+            report.missing_information[0].framework,
+            RegulatoryFramework.EU_AI_ACT,
         )
 
 
