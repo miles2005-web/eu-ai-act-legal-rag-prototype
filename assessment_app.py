@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import streamlit as st
 
-from scripts.run_demo_assessment import build_assessment_facts, load_fixture
+from scripts.run_demo_assessment import (
+    _assign_tri_state_values,
+    build_assessment_facts,
+    load_fixture,
+)
 from src.assessment.demo import AssessmentWorkflowBundle, create_assessment_workflow
 from src.assessment.facts import UseDomain
 from src.assessment.models import TriState
@@ -20,6 +27,14 @@ from src.ui.components import (
 
 
 APP_TITLE = "EU AI Act Compliance Assessment Platform"
+PROJECT_ROOT = Path(__file__).resolve().parent
+INDUSTRIAL_FIXTURE_PATH = (
+    PROJECT_ROOT / "tests" / "fixtures" / "industrial_ai_case.json"
+)
+VIEW_LANDING = "landing"
+VIEW_WORKSPACE = "workspace"
+VIEW_RESULTS = "results"
+VIEW_EVIDENCE = "evidence"
 DOMAIN_LABELS = {
     UseDomain.UNKNOWN: "Unknown / not yet provided",
     UseDomain.EMPLOYMENT: "Employment",
@@ -48,6 +63,21 @@ def get_workflow_bundle() -> AssessmentWorkflowBundle:
     return st.session_state.assessment_workflow_bundle
 
 
+def initialize_ui_state() -> None:
+    """Initialize presentation-only navigation state."""
+
+    st.session_state.setdefault("assessment_view", VIEW_LANDING)
+    st.session_state.setdefault("demo_scenario", None)
+    st.session_state.setdefault("selected_finding_id", None)
+
+
+def navigate(view: str) -> None:
+    """Navigate between workspace views without changing domain state."""
+
+    st.session_state.assessment_view = view
+    st.rerun()
+
+
 def load_recruitment_demo(bundle: AssessmentWorkflowBundle) -> None:
     """Create a case from the existing pure-data recruitment demo fixture."""
 
@@ -60,6 +90,31 @@ def load_recruitment_demo(bundle: AssessmentWorkflowBundle) -> None:
     st.session_state.assessment_case_id = assessment_case.case_id
     st.session_state.assessment_report = None
     st.session_state.demo_loaded = True
+    st.session_state.demo_scenario = "recruitment"
+    st.session_state.assessment_view = VIEW_WORKSPACE
+    st.rerun()
+
+
+def load_industrial_demo(bundle: AssessmentWorkflowBundle) -> None:
+    """Create a case from the existing industrial AI fixture."""
+
+    payload = json.loads(INDUSTRIAL_FIXTURE_PATH.read_text(encoding="utf-8"))
+    facts = build_assessment_facts(payload["facts"])
+    _assign_tri_state_values(
+        facts.data_protection,
+        payload["facts"]["data_protection"],
+    )
+    _assign_tri_state_values(facts.data_act, payload["facts"]["data_act"])
+    assessment_case = bundle.case_service.create_case(
+        payload["scenario"]["name"],
+        description=payload["scenario"]["description"],
+        facts=facts,
+    )
+    st.session_state.assessment_case_id = assessment_case.case_id
+    st.session_state.assessment_report = None
+    st.session_state.demo_loaded = True
+    st.session_state.demo_scenario = "industrial"
+    st.session_state.assessment_view = VIEW_WORKSPACE
     st.rerun()
 
 
@@ -71,7 +126,39 @@ def render_sidebar(
     """Show presentation-only workflow progress for the current session."""
 
     with st.sidebar:
-        st.header("Assessment progress")
+        st.caption("COMPLIANCE WORKSPACE")
+        st.markdown("### Assessment navigation")
+        current_view = st.session_state.get("assessment_view", VIEW_LANDING)
+        if st.button(
+            "Cases & demos",
+            use_container_width=True,
+            type="primary" if current_view == VIEW_LANDING else "secondary",
+        ):
+            navigate(VIEW_LANDING)
+        if st.button(
+            "Assessment workspace",
+            use_container_width=True,
+            disabled=case_id is None,
+            type="primary" if current_view == VIEW_WORKSPACE else "secondary",
+        ):
+            navigate(VIEW_WORKSPACE)
+        if st.button(
+            "Assessment result",
+            use_container_width=True,
+            disabled=report is None,
+            type="primary" if current_view == VIEW_RESULTS else "secondary",
+        ):
+            navigate(VIEW_RESULTS)
+        if st.button(
+            "Evidence trace",
+            use_container_width=True,
+            disabled=report is None,
+            type="primary" if current_view == VIEW_EVIDENCE else "secondary",
+        ):
+            navigate(VIEW_EVIDENCE)
+
+        st.divider()
+        st.markdown("#### Assessment progress")
         case_complete = case_id is not None
         facts_complete = False
         if case_id is not None:
@@ -95,7 +182,7 @@ def render_sidebar(
         st.progress(sum(complete for _, complete in statuses) / len(statuses))
 
         st.divider()
-        st.caption("Current assessment scope")
+        st.caption("CONFIGURED ASSESSMENT SCOPE")
         st.write("EU AI Act employment high-risk screening")
         st.caption("Article 6 · Annex III point 4(a)")
 
@@ -106,33 +193,107 @@ def render_sidebar(
             st.session_state.assessment_case_id = None
             st.session_state.assessment_report = None
             st.session_state.demo_loaded = False
+            st.session_state.demo_scenario = None
+            st.session_state.selected_finding_id = None
+            st.session_state.assessment_view = VIEW_LANDING
             st.rerun()
 
 
 def render_case_creation(bundle: AssessmentWorkflowBundle) -> None:
     """Collect case identity data and create an in-memory assessment case."""
 
+    st.markdown("# AI governance assessment workspace")
+    st.markdown(
+        "### Structured regulatory assessment, grounded in legal evidence."
+    )
+    st.write(
+        "Create a compliance case, establish the relevant facts, run "
+        "deterministic legal rules, and review a traceable assessment report."
+    )
+    st.caption("Prototype only — this output does not constitute legal advice.")
+
+    capability_columns = st.columns(4)
+    capabilities = (
+        ("Structured facts", "Capture legally relevant facts without inference."),
+        ("Versioned rules", "Apply deterministic legal assessment logic."),
+        ("Legal evidence", "Resolve supporting authority from legal corpora."),
+        ("Traceable reports", "Connect facts, findings, rules, and citations."),
+    )
+    for column, (heading, description) in zip(
+        capability_columns,
+        capabilities,
+        strict=True,
+    ):
+        with column:
+            with st.container(border=True):
+                st.markdown(f"**{heading}**")
+                st.caption(description)
+
+    active_case_id = st.session_state.get("assessment_case_id")
+    if active_case_id is not None:
+        active_case = bundle.case_service.get_case(active_case_id)
+        render_section_header(
+            "Current case",
+            eyebrow="Continue assessment",
+        )
+        with st.container(border=True):
+            case_column, action_column = st.columns([4, 1])
+            case_column.markdown(f"### {active_case.name}")
+            case_column.write(
+                active_case.description or "No case description provided."
+            )
+            with action_column:
+                if st.button(
+                    "Open workspace",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    navigate(VIEW_WORKSPACE)
+
     render_section_header(
-        "Start an assessment",
-        eyebrow="Case workspace",
+        "Choose a demonstration scenario",
+        eyebrow="Guided assessment",
         description=(
-            "Explore the prepared recruitment scenario or create a case using "
-            "your own facts."
+            "Start with a prepared factual record to explore the compliance "
+            "workspace and report experience."
         ),
     )
-    if st.button(
-        "Load Recruitment AI Screening Demo",
-        type="primary",
-        use_container_width=True,
-    ):
-        load_recruitment_demo(bundle)
+    recruitment_column, industrial_column = st.columns(2)
+    with recruitment_column:
+        with st.container(border=True):
+            st.caption("EMPLOYMENT · EU AI ACT")
+            st.markdown("### Recruitment AI Screening")
+            st.write(
+                "An AI system screens CVs, ranks candidates, and materially "
+                "influences recruitment decisions."
+            )
+            st.caption("Prepared facts · Preliminary high-risk screening")
+            if st.button(
+                "Open recruitment demo",
+                type="primary",
+                use_container_width=True,
+            ):
+                load_recruitment_demo(bundle)
+    with industrial_column:
+        with st.container(border=True):
+            st.caption("INDUSTRIAL DATA · CONNECTED MACHINERY")
+            st.markdown("### Industrial AI Monitoring")
+            st.write(
+                "A connected machinery monitoring service generates operational "
+                "data requested by an external maintenance provider."
+            )
+            st.caption("Prepared facts · Cross-regulatory demonstration case")
+            if st.button(
+                "Open industrial demo",
+                use_container_width=True,
+            ):
+                load_industrial_demo(bundle)
 
-    st.caption(
-        "The demo describes an AI system that screens CVs, ranks candidates, "
-        "and materially influences recruitment decisions."
+    render_section_header(
+        "Create a blank assessment",
+        eyebrow="New case",
+        description="Start with an empty factual record for your own AI system.",
     )
-    st.divider()
-    st.markdown("#### Create a blank case")
     with st.form("create_assessment_case"):
         name = st.text_input(
             "Case name",
@@ -154,7 +315,47 @@ def render_case_creation(bundle: AssessmentWorkflowBundle) -> None:
         )
         st.session_state.assessment_case_id = assessment_case.case_id
         st.session_state.assessment_report = None
+        st.session_state.demo_loaded = False
+        st.session_state.demo_scenario = None
+        st.session_state.assessment_view = VIEW_WORKSPACE
         st.rerun()
+
+
+def render_case_context(bundle: AssessmentWorkflowBundle, case_id: str) -> None:
+    """Render the active case header and a concise system profile."""
+
+    assessment_case = bundle.case_service.get_case(case_id)
+    facts = assessment_case.current_facts
+    title_column, action_column = st.columns([4, 1])
+    with title_column:
+        st.caption("ACTIVE ASSESSMENT CASE")
+        st.markdown(f"# {assessment_case.name}")
+        if assessment_case.description:
+            st.write(assessment_case.description)
+    with action_column:
+        st.metric("Schema version", assessment_case.schema_version)
+
+    profile_column, scope_column, status_column = st.columns(3)
+    with profile_column:
+        with st.container(border=True):
+            st.caption("SYSTEM PROFILE")
+            st.markdown(f"**{facts.system.name or 'Unnamed AI system'}**")
+            st.write(facts.system.intended_purpose or "Purpose not yet provided.")
+    with scope_column:
+        with st.container(border=True):
+            st.caption("USE CONTEXT")
+            st.markdown(f"**{DOMAIN_LABELS[facts.use_context.domain]}**")
+            st.write(facts.use_context.task or "Task not yet provided.")
+    with status_column:
+        with st.container(border=True):
+            st.caption("ASSESSMENT STATUS")
+            st.markdown(
+                "**Report available**"
+                if st.session_state.get("assessment_report") is not None
+                else "**Facts in progress**"
+            )
+            demo = st.session_state.get("demo_scenario")
+            st.write(f"Scenario: {demo.title()}" if demo else "Custom case")
 
 
 def render_fact_collection(bundle: AssessmentWorkflowBundle, case_id: str) -> None:
@@ -172,8 +373,13 @@ def render_fact_collection(bundle: AssessmentWorkflowBundle, case_id: str) -> No
         ),
     )
     if st.session_state.get("demo_loaded"):
+        demo_name = (
+            "Industrial AI Monitoring"
+            if st.session_state.get("demo_scenario") == "industrial"
+            else "Recruitment AI Screening"
+        )
         st.info(
-            "Recruitment AI Screening Demo loaded. Review or edit the populated "
+            f"{demo_name} demo loaded. Review or edit the populated "
             "facts before running the assessment."
         )
     domains = list(DOMAIN_LABELS)
@@ -228,11 +434,12 @@ def render_assessment_action(
     if st.button("Run assessment", type="primary", use_container_width=True):
         with st.spinner("Running assessment and resolving legal evidence..."):
             st.session_state.assessment_report = bundle.workflow.run(case_id)
+        st.session_state.assessment_view = VIEW_RESULTS
         st.rerun()
 
 
 def render_report(report: AssessmentReport) -> None:
-    """Present the structured report without adding legal conclusions."""
+    """Present structured assessment results without evidence duplication."""
 
     render_section_header(
         "Assessment report",
@@ -270,15 +477,6 @@ def render_report(report: AssessmentReport) -> None:
             evidence_count=len(binding.evidence_refs) if binding else 0,
         )
 
-    render_section_header(
-        "Evidence trace",
-        description=f"{len(report.evidence)} supporting evidence record(s).",
-    )
-    if not report.evidence:
-        st.info("No supporting evidence was resolved for the current findings.")
-    for evidence in report.evidence:
-        render_evidence_trace_card(evidence)
-
     render_section_header("Missing information")
     if report.missing_information:
         for item in report.missing_information:
@@ -296,32 +494,91 @@ def render_report(report: AssessmentReport) -> None:
         f"Generated {report.generated_at.isoformat()}"
     )
 
+    if st.button(
+        "Open evidence trace",
+        type="primary",
+        use_container_width=True,
+    ):
+        navigate(VIEW_EVIDENCE)
+
+
+def render_evidence_workspace(report: AssessmentReport) -> None:
+    """Render finding-specific evidence relationships and stable identities."""
+
+    render_section_header(
+        "Evidence trace",
+        eyebrow="Legal authority",
+        description=(
+            "Inspect the relationship between findings, versioned rules, legal "
+            "basis references, and atomic corpus evidence."
+        ),
+    )
+    if not report.findings:
+        st.info("No finding is available for evidence tracing.")
+        return
+
+    finding_by_id = {finding.finding_id: finding for finding in report.findings}
+    options = list(finding_by_id)
+    selected_id = st.session_state.get("selected_finding_id")
+    if selected_id not in finding_by_id:
+        selected_id = options[0]
+    selected_id = st.selectbox(
+        "Select finding",
+        options=options,
+        index=options.index(selected_id),
+        format_func=lambda finding_id: finding_by_id[finding_id].title,
+    )
+    st.session_state.selected_finding_id = selected_id
+    finding = finding_by_id[selected_id]
+
+    binding = next(
+        (
+            item
+            for item in report.evidence_bindings
+            if item.finding_id == selected_id
+        ),
+        None,
+    )
+    evidence_by_id = {item.evidence_id: item for item in report.evidence}
+    bound_evidence = [
+        evidence_by_id[evidence_id]
+        for evidence_id in (binding.evidence_refs if binding else [])
+        if evidence_id in evidence_by_id
+    ]
+
+    overview_column, trace_column = st.columns([2, 3])
+    with overview_column:
+        render_finding_card(finding, evidence_count=len(bound_evidence))
+    with trace_column:
+        with st.container(border=True):
+            st.caption("TRACEABILITY CHAIN")
+            st.markdown("#### Fact → Rule → Legal basis → Evidence")
+            st.write("**Facts referenced**")
+            for fact_path in finding.fact_refs:
+                st.code(fact_path, language=None)
+            st.write("**Rule metadata**")
+            st.write(
+                f"`{finding.rule_id or 'Not recorded'}` · "
+                f"Version `{finding.rule_version or 'Not recorded'}`"
+            )
+            st.write("**Authored legal basis**")
+            for basis in finding.legal_basis:
+                st.write(f"- {basis.instrument} · {basis.citation}")
+
+    render_section_header(
+        "Bound evidence",
+        description=f"{len(bound_evidence)} atomic evidence record(s).",
+    )
+    if not bound_evidence:
+        st.info("No supporting evidence is bound to this finding.")
+    for evidence in bound_evidence:
+        render_evidence_trace_card(evidence)
+
 
 def main() -> None:
     st.set_page_config(page_title=APP_TITLE, page_icon="⚖️", layout="wide")
     apply_enterprise_styles()
-    st.title(APP_TITLE)
-    st.write(
-        "A legal engineering prototype for preliminary, evidence-grounded "
-        "assessment under the EU AI Act."
-    )
-    st.caption("Prototype only — this output does not constitute legal advice.")
-
-    capability_columns = st.columns(4)
-    capabilities = (
-        ("Structured facts", "Capture legally relevant facts without inference."),
-        ("Rule-based assessment", "Apply deterministic, versioned legal rules."),
-        ("Legal evidence", "Retrieve supporting provisions from the legal corpus."),
-        ("Traceable reports", "Connect facts, findings, reasoning, and authority."),
-    )
-    for column, (heading, description) in zip(
-        capability_columns,
-        capabilities,
-        strict=True,
-    ):
-        with column:
-            st.markdown(f"**{heading}**")
-            st.caption(description)
+    initialize_ui_state()
 
     try:
         bundle = get_workflow_bundle()
@@ -332,17 +589,38 @@ def main() -> None:
     case_id = st.session_state.get("assessment_case_id")
     report = st.session_state.get("assessment_report")
     render_sidebar(bundle, case_id, report)
-    if case_id is None:
+    view = st.session_state.get("assessment_view", VIEW_LANDING)
+
+    if view == VIEW_LANDING:
         render_case_creation(bundle)
         return
 
-    assessment_case = bundle.case_service.get_case(case_id)
-    st.success(f"Current case: {assessment_case.name}")
-    render_fact_collection(bundle, case_id)
-    render_assessment_action(bundle, case_id)
+    if case_id is None:
+        st.session_state.assessment_view = VIEW_LANDING
+        st.rerun()
 
-    if report is not None:
+    render_case_context(bundle, case_id)
+    if view == VIEW_WORKSPACE:
+        render_fact_collection(bundle, case_id)
+        render_assessment_action(bundle, case_id)
+        return
+
+    if report is None:
+        st.info("Run the assessment before opening results or evidence trace.")
+        if st.button("Return to assessment workspace", type="primary"):
+            navigate(VIEW_WORKSPACE)
+        return
+
+    if view == VIEW_RESULTS:
         render_report(report)
+        return
+
+    if view == VIEW_EVIDENCE:
+        render_evidence_workspace(report)
+        return
+
+    st.session_state.assessment_view = VIEW_LANDING
+    st.rerun()
 
 
 if __name__ == "__main__":
