@@ -15,6 +15,10 @@ from src.assessment.evidence.catalog import (
     LegalSourceCatalog,
     load_legal_source_catalog,
 )
+from src.assessment.evidence.corpus_metadata import (
+    CORPUS_METADATA_SCHEMA_VERSION,
+    CorpusMetadataV2,
+)
 from src.assessment.evidence.models import AuthorityLevel, Evidence
 
 
@@ -247,6 +251,17 @@ class VectorStoreJSONEvidenceRetriever(LegalEvidenceRetriever):
         document_version: str | None,
         authority_level: AuthorityLevel,
     ) -> Evidence:
+        v2_metadata = self._v2_metadata(record)
+        if v2_metadata is not None:
+            return Evidence(
+                evidence_id=v2_metadata.stable_evidence_id,
+                legal_source=v2_metadata.instrument_id,
+                citation=v2_metadata.canonical_citation,
+                excerpt=record.document,
+                document_version=v2_metadata.document_version,
+                authority_level=v2_metadata.authority_level,
+            )
+
         identity = "|".join(
             (self._normalize(legal_source), self._normalize(citation), record.record_id)
         )
@@ -259,6 +274,41 @@ class VectorStoreJSONEvidenceRetriever(LegalEvidenceRetriever):
             document_version=document_version,
             authority_level=authority_level,
         )
+
+    @staticmethod
+    def _v2_metadata(
+        record: _VectorStoreRecord,
+    ) -> CorpusMetadataV2 | None:
+        schema_version = record.metadata.get("metadata_schema_version")
+        if schema_version is None:
+            return None
+        if schema_version != CORPUS_METADATA_SCHEMA_VERSION:
+            raise VectorStoreFormatError(
+                f"record {record.record_id!r} uses unsupported metadata schema "
+                f"{schema_version!r}"
+            )
+
+        try:
+            authority_level = AuthorityLevel(
+                record.metadata.get("authority_level")
+            )
+            return CorpusMetadataV2(
+                instrument_id=record.metadata.get("instrument_id"),
+                document_version=record.metadata.get("document_version"),
+                canonical_citation=record.metadata.get(
+                    "canonical_citation"
+                ),
+                authority_level=authority_level,
+                source_record_id=record.metadata.get("source_record_id"),
+                stable_evidence_id=record.metadata.get(
+                    "stable_evidence_id"
+                ),
+                metadata_schema_version=schema_version,
+            )
+        except (TypeError, ValueError) as exc:
+            raise VectorStoreFormatError(
+                f"record {record.record_id!r} contains invalid v2 metadata: {exc}"
+            ) from exc
 
     def _allowed_sources(self, legal_source: str) -> frozenset[str]:
         source_key = self._normalize(legal_source)
