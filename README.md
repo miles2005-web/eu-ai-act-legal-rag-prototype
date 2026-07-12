@@ -48,24 +48,61 @@ The layers have deliberately separate responsibilities. Questionnaires collect f
 - **Evidence-grounded findings** — Legal findings can be connected to citations and excerpts without placing retrieval inside the rule logic.
 - **Traceable compliance reports** — Deterministic reports preserve the path from facts to findings, rule versions, and supporting evidence.
 
-## Demonstration Scenario
+## Demo
+
+The Streamlit prototype demonstrates the structured assessment workflow from case creation to an evidence-grounded report. A user can:
+
+1. create an assessment case or load the prepared recruitment AI scenario;
+2. review and provide the facts required by the registered rule;
+3. run the deterministic assessment workflow;
+4. inspect the preliminary classification, legal basis, and reasoning trace; and
+5. review the supporting legal evidence and report recommendations.
+
+The interface keeps presentation separate from legal reasoning: Streamlit collects and displays information, while the assessment engine, evidence service, and report builder produce the result.
+
+### Recruitment AI Screening Scenario
 
 The included demonstration models an AI system used by a company to screen and rank job candidates. Its output materially influences access to employment opportunities.
 
 The assessment workflow collects these facts and applies a preliminary employment high-risk rule based on Article 6 and Annex III point 4(a) of the EU AI Act. Where the required conditions are satisfied, the result is expressed cautiously as **potentially applies**, preserving the need for further legal and factual review.
 
-Run the command-line demonstration from the repository root:
+The reusable scenario data is stored in `tests/fixtures/recruitment_ai_case.json` and can be loaded directly from the Streamlit landing page.
+
+### Screenshots
+
+> **Assessment facts input** — Screenshot placeholder for the populated structured-facts form.
+
+> **Assessment report** — Screenshot placeholder for the preliminary classification and report summary.
+
+> **Evidence trace** — Screenshot placeholder for the reasoning trace and supporting legal evidence.
+
+## Project Status
+
+- ✅ Structured assessment workflow implemented
+- ✅ Evidence-grounded report generation implemented
+- ✅ Streamlit assessment prototype available
+- 🚧 Additional EU AI Act rules and regulatory domains in development
+
+## How to Run the Demo
+
+After installing the project dependencies, launch the assessment interface from the repository root:
+
+```bash
+streamlit run assessment_app.py
+```
+
+Then open `http://localhost:8501` and select **Load Recruitment AI Screening Demo**.
+
+The same scenario can also be executed without a UI:
 
 ```bash
 python scripts/run_demo_assessment.py
 ```
 
-The reusable scenario data is stored in `tests/fixtures/recruitment_ai_case.json`.
-
 ## Technical Stack
 
 - Python and typed domain models
-- Streamlit for the existing legal retrieval prototype
+- Streamlit for the assessment workflow and existing legal retrieval prototype
 - ChromaDB and exported vector data for legal corpus retrieval
 - Versioned rule engine architecture
 - Legal-structure-aware PDF processing and chunking
@@ -74,6 +111,7 @@ The reusable scenario data is stored in `tests/fixtures/recruitment_ai_case.json
 ## Repository Structure
 
 ```text
+├── assessment_app.py               # Streamlit assessment workflow prototype
 ├── app_chroma.py                    # Existing Streamlit legal retrieval prototype
 ├── run_pipeline_chroma.py           # Chroma ingestion pipeline
 ├── vector_store.json                # Exported legal corpus vectors
@@ -116,10 +154,10 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Run the assessment demonstration:
+Run the assessment interface:
 
 ```bash
-python scripts/run_demo_assessment.py
+streamlit run assessment_app.py
 ```
 
 Run the existing Streamlit retrieval interface:
@@ -131,7 +169,7 @@ streamlit run app_chroma.py
 
 ## Roadmap
 
-- Streamlit interface centered on assessment cases and dynamic questionnaires
+- Dynamic questionnaire expansion for additional rule requirements
 - Additional EU AI Act classification, role, prohibition, and obligation rules
 - GDPR and Data Act cross-regulatory assessment
 - Broader support for EU digital regulation
