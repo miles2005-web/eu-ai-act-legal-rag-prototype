@@ -14,16 +14,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.assessment import (  # noqa: E402
-    AssessmentCaseService,
-    AssessmentEngine,
     AssessmentFacts,
     AssessmentReport,
-    AssessmentWorkflowService,
-    InMemoryEvidenceService,
-    ReportBuilder,
     TriState,
-    VectorStoreJSONEvidenceRetriever,
 )
+from src.assessment.demo import create_assessment_workflow  # noqa: E402
+from src.assessment.workflow import AssessmentWorkflowService  # noqa: E402
 from src.assessment.facts import (  # noqa: E402
     AffectedPerson,
     AnnexIIIArea,
@@ -34,12 +30,6 @@ from src.assessment.facts import (  # noqa: E402
     SystemOutput,
     UseDomain,
 )
-from src.assessment.rules import (  # noqa: E402
-    AIActHighRiskEmploymentRule,
-    RuleRegistry,
-)
-
-
 FIXTURE_PATH = PROJECT_ROOT / "tests" / "fixtures" / "recruitment_ai_case.json"
 VECTOR_STORE_PATH = PROJECT_ROOT / "vector_store.json"
 
@@ -146,31 +136,14 @@ def build_workflow(
     """Assemble existing services for one fixture-backed demonstration case."""
 
     facts = build_assessment_facts(payload["facts"])
-    rule = AIActHighRiskEmploymentRule()
-    retriever = VectorStoreJSONEvidenceRetriever(VECTOR_STORE_PATH)
-    evidence_by_id = {}
-    for legal_basis in rule.legal_basis:
-        for evidence in retriever.retrieve(
-            legal_basis.instrument,
-            legal_basis.citation,
-            limit=5,
-        ):
-            evidence_by_id.setdefault(evidence.evidence_id, evidence)
-
-    case_service = AssessmentCaseService()
-    assessment_case = case_service.create_case(
+    bundle = create_assessment_workflow(vector_store_path=VECTOR_STORE_PATH)
+    assessment_case = bundle.case_service.create_case(
         payload["scenario"]["name"],
         description=payload["scenario"]["description"],
         facts=facts,
         case_id=payload["scenario_id"],
     )
-    workflow = AssessmentWorkflowService(
-        case_service=case_service,
-        assessment_engine=AssessmentEngine(RuleRegistry([rule])),
-        evidence_service=InMemoryEvidenceService(evidence_by_id.values()),
-        report_builder=ReportBuilder(),
-    )
-    return workflow, assessment_case.case_id, assessment_case.name
+    return bundle.workflow, assessment_case.case_id, assessment_case.name
 
 
 def validate_expected_result(
