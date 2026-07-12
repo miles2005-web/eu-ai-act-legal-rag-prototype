@@ -1,201 +1,148 @@
-# ⚖️ EU AI Act Compliance Navigator
+# EU AI Act Compliance Assessment Platform
 
-A RAG-based compliance assessment tool for the EU Artificial Intelligence Act (Regulation 2024/1689). Users describe their AI system in natural language, and the tool retrieves relevant legal provisions and generates a structured compliance report.
+A legal engineering prototype for structured, evidence-grounded assessment under the EU Artificial Intelligence Act (Regulation (EU) 2024/1689).
 
-**Live Demo:** [eu-ai-act-legal-rag-prototype.streamlit.app](https://eu-ai-act-legal-rag-prototype-hgryem2gsyrmyz7m6tda6c.streamlit.app)
+The project began as a legal retrieval and chat prototype. It is evolving into a rule-driven AI governance assessment framework in which retrieval supports legal findings rather than acting as the primary decision mechanism.
 
-## What It Does
+## Overview
 
-1. **Risk Classification** — Input an AI system description → receive risk tier (Unacceptable / High-Risk / Limited / Minimal) with article citations
-1. **Obligation Mapping** — Outputs specific compliance requirements with article references
-1. **Cross-Regulatory Analysis** — Identifies overlapping obligations from GDPR, product safety, and cybersecurity frameworks
-1. **Source Transparency** — Every answer cites specific articles, recitals, and annexes
-1. **Smart Routing** — Automatically detects legal references (Article, Annex, Recital) in queries for precision metadata-filtered retrieval
+EU AI Act compliance requires more than locating relevant provisions. An organisation must establish facts about an AI system, determine its regulatory role and risk category, identify potentially applicable obligations, and preserve a defensible link between each conclusion and its legal authority.
 
-## Technical Architecture
+Document retrieval alone cannot reliably perform that analysis: similar provisions can have different legal effects, classification depends on structured factual conditions, and missing information must remain visible rather than being filled by inference.
 
-![System Architecture](screenshots/architecture.png)
+This platform therefore combines:
 
+- structured facts collected through a questionnaire;
+- deterministic, versioned legal rules;
+- legal corpus retrieval for supporting authority;
+- traceable findings and missing-information records; and
+- standardized compliance reports suitable for review.
+
+The output is a preliminary compliance assessment, not legal advice or a definitive legal classification.
+
+## Architecture
+
+```text
+AI System Facts
+        ↓
+Questionnaire Engine
+        ↓
+Assessment Workflow
+        ↓
+Rule Engine
+        ↓
+Legal Findings
+        ↓
+Evidence Retrieval
+        ↓
+Compliance Report
 ```
-User Input
-    → Self-Query Router (regex-based legal reference detection)
-    → [Metadata Filter / Full Vector Search]
-    → Dynamic Token Budget (auto-adjusts by query complexity)
-    → GPT-4o-mini Structured Compliance Assessment
+
+The layers have deliberately separate responsibilities. Questionnaires collect facts, rules evaluate legal conditions, evidence services bind findings to authority, and the report layer produces a deterministic and reviewable output. Assessment runs remain immutable snapshots of the facts and rule versions used.
+
+## Core Capabilities
+
+- **EU AI Act legal corpus retrieval** — Legal-structure-aware chunking and vector retrieval across articles, recitals, and annexes.
+- **Structured assessment workflow** — Case facts, missing-fact validation, assessment execution, evidence resolution, and report generation.
+- **Rule-based risk classification** — Typed, reusable, versioned rules with explicit required facts and legal-basis metadata.
+- **Evidence-grounded findings** — Legal findings can be connected to citations and excerpts without placing retrieval inside the rule logic.
+- **Traceable compliance reports** — Deterministic reports preserve the path from facts to findings, rule versions, and supporting evidence.
+
+## Demonstration Scenario
+
+The included demonstration models an AI system used by a company to screen and rank job candidates. Its output materially influences access to employment opportunities.
+
+The assessment workflow collects these facts and applies a preliminary employment high-risk rule based on Article 6 and Annex III point 4(a) of the EU AI Act. Where the required conditions are satisfied, the result is expressed cautiously as **potentially applies**, preserving the need for further legal and factual review.
+
+Run the command-line demonstration from the repository root:
+
+```bash
+python scripts/run_demo_assessment.py
 ```
 
-|Component       |Technology                                             |
-|----------------|-------------------------------------------------------|
-|Document Parsing|pypdf + legal-structure-aware chunking                 |
-|Embeddings      |OpenAI text-embedding-3-small (1536 dim) via OpenRouter|
-|Vector Store    |ChromaDB (local pipeline) + JSON export (deployed app) |
-|Retrieval       |Self-Query routing + dynamic token budget              |
-|LLM             |GPT-4o-mini via OpenRouter                             |
-|Frontend        |Streamlit (chat interface)                             |
+The reusable scenario data is stored in `tests/fixtures/recruitment_ai_case.json`.
 
-**Why legal-structure-aware chunking?** Standard RAG systems split text by 
-fixed token length. EU AI Act provisions have hierarchical dependencies — 
-Article 6's classification rules reference Annex III's high-risk list, 
-which in turn triggers obligations spread across Articles 9–14. Fixed-length 
-splitting severs these connections. The chunker in `src/legal_chunks.py` 
-respects Chapter, Section, Article, and Annex boundaries, preserving the 
-legal logic each chunk carries.
+## Technical Stack
 
-**Why Self-Query routing instead of pure semantic search?** Annex III 
-(high-risk AI system categories) and Annex IV (technical documentation 
-requirements) are semantically similar in embedding space — same legal 
-register, similar structure — but their legal consequences are mutually 
-exclusive. Semantic-only retrieval conflates them. The regex router detects 
-explicit legal references and applies metadata filters before vector search, 
-eliminating this class of error for direct citation queries.
-
-## Key Features
-
-- **Chat Interface** — Conversational UI with user messages right-aligned
-- **6 Languages** — English, French, German, Spanish, Simplified Chinese, Traditional Chinese
-- **Self-Query Routing** — Mentions of “Article 6”, “Annex III”, etc. trigger metadata-filtered search
-- **Dynamic Token Budget** — Auto-adjusts context window (6K–10K tokens) based on query complexity
-- **Quick Query Buttons** — Pre-built scenarios for common compliance questions
-- **Download Answers** — Export individual answers or full chat history as Markdown
-- **Regenerate in New Language** — Switch language and regenerate any previous answer
-
-## Screenshots
-
-![Home screen](screenshots/home.png)
-![Article query example](screenshots/article-query.png)
-![Obligations query example](screenshots/obligations-query.png)
-
-## External Showcase
-
-To present the project in a public evaluation setting, this prototype was submitted to Hack Trek 2026 on Devpost.
-
-This submission reflects the project’s transition from a private prototype to a publicly demonstrable legal-tech tool for EU AI Act compliance analysis.
-
-- Devpost submission: https://devpost.com/software/ai-compliance-copilot-for-the-eu-ai-act
-- Demo video: https://youtu.be/H4M3oPX7sz4
+- Python and typed domain models
+- Streamlit for the existing legal retrieval prototype
+- ChromaDB and exported vector data for legal corpus retrieval
+- Versioned rule engine architecture
+- Legal-structure-aware PDF processing and chunking
+- Deterministic assessment workflow and report generation
 
 ## Repository Structure
 
-```
-├── app_chroma.py          # Main Streamlit app (chat UI + RAG pipeline)
-├── run_pipeline_chroma.py # Embedding generation + ChromaDB ingestion
-├── vector_store.json      # Pre-computed embeddings (3230 chunks)
-├── requirements.txt       # Python dependencies
-├── src/
-│   ├── ingest.py          # Document parsing (PDF/TXT → plain text)
-│   └── legal_chunks.py    # Legal-structure-aware chunking + metadata
-├── eval/
-│   └── golden_queries.json
+```text
+├── app_chroma.py                    # Existing Streamlit legal retrieval prototype
+├── run_pipeline_chroma.py           # Chroma ingestion pipeline
+├── vector_store.json                # Exported legal corpus vectors
 ├── scripts/
-│   └── evaluate_retrieval.py
-└── data/
-    ├── raw/               # Source legal documents (PDF)
-    └── parsed/            # Extracted plain text
+│   ├── evaluate_retrieval.py        # Retrieval evaluation
+│   └── run_demo_assessment.py       # End-to-end assessment demonstration
+├── src/
+│   ├── ingest.py                    # Legal document parsing
+│   ├── legal_chunks.py              # Legal-structure-aware chunking
+│   └── assessment/
+│       ├── case/                    # Assessment case lifecycle
+│       ├── evidence/                # Evidence models, service, and retrieval adapter
+│       ├── questionnaire/           # Question definitions and missing-fact routing
+│       ├── report/                  # Deterministic compliance reports
+│       ├── rules/                   # Rule contracts, registry, and legal rules
+│       ├── workflow/                # Assessment orchestration
+│       ├── engine.py                # Rule execution runtime
+│       ├── facts.py                 # Structured assessment facts
+│       └── findings.py              # Legal finding model
+└── tests/
+    ├── assessment/                  # Domain and workflow tests
+    └── fixtures/                    # Reusable assessment scenarios
 ```
 
-## How to Run Locally
+## Legal Retrieval Foundation
+
+The corpus pipeline preserves Chapter, Section, Article, Recital, and Annex boundaries rather than splitting legislation only by token length. This matters because EU AI Act classification provisions and their consequences are distributed across linked legal structures—for example, Article 6 and Annex III.
+
+The current retrieval corpus includes the EU AI Act and supporting EU digital-regulation materials. Retrieval is used to supply legal evidence; it does not replace structured fact collection or rule evaluation.
+
+## Running Locally
+
+Create an environment and install the project dependencies:
 
 ```bash
 git clone https://github.com/miles2005-web/eu-ai-act-legal-rag-prototype.git
 cd eu-ai-act-legal-rag-prototype
 python3.12 -m venv venv
 source venv/bin/activate
-pip install streamlit openai chromadb pypdf
+pip install -r requirements.txt
+```
+
+Run the assessment demonstration:
+
+```bash
+python scripts/run_demo_assessment.py
+```
+
+Run the existing Streamlit retrieval interface:
+
+```bash
 export OPENROUTER_API_KEY="your-key-here"
 streamlit run app_chroma.py
 ```
 
-## Adding New Legal Documents
+## Roadmap
 
-1. Place PDF files in `data/raw/`
-1. Run `python src/ingest.py` to parse
-1. Run `python run_pipeline_chroma.py` to generate embeddings
-1. Export updated vector store:
+- Streamlit interface centered on assessment cases and dynamic questionnaires
+- Additional EU AI Act classification, role, prohibition, and obligation rules
+- GDPR and Data Act cross-regulatory assessment
+- Broader support for EU digital regulation
+- Persistent cases, review workflows, exports, and enterprise compliance processes
 
-```bash
-python -c "
-import json, chromadb
-db = chromadb.PersistentClient(path='./chroma_db')
-col = db.get_collection('eu_ai_act')
-data = col.get(include=['documents','metadatas','embeddings'])
-export = []
-for i in range(len(data['ids'])):
-    emb = data['embeddings'][i]
-    if hasattr(emb, 'tolist'): emb = emb.tolist()
-    export.append({'id':data['ids'][i],'document':data['documents'][i],'metadata':data['metadatas'][i],'embedding':[round(x,5) for x in emb]})
-with open('vector_store.json','w') as f:
-    json.dump(export, f, separators=(',',':'))
-print(f'Exported {len(export)} records')
-"
-```
+## Project Context
 
-1. Push updated `vector_store.json` to GitHub
-
-## Example Questions
-
-- “What does Article 6 say about high-risk AI classification?”
-- “An AI system that screens job applicants’ CVs and ranks candidates.”
-- “What obligations do providers of high-risk AI systems have?”
-- “What AI systems are listed in Annex III?”
-- “What transparency requirements apply to AI systems?”
-- “What AI practices are prohibited under the EU AI Act?”
-- “Does my biometric identification system fall under Annex III?”
-- “What does Article 9 require for risk management?”
-
-## Legal Documents Coverage
-
-**Primary Legislation (EU AI Act)**
-
-| Document | Notes |
-|---|---|
-| EU AI Act — Full Text (Regulation 2024/1689) | Articles 1–113 |
-| EU AI Act — Recitals 1–180 | Indexed separately for precision retrieval |
-| EU AI Act — Annexes I–XIII | Indexed separately; Annex III (high-risk list) and Annex IV (technical documentation) treated as distinct retrieval targets |
-
-**Cross-Regulatory Framework**
-
-| Document | Relevance |
-|---|---|
-| GDPR (Regulation 2016/679) | Data governance obligations intersecting high-risk AI systems |
-| Cyber Resilience Act (Regulation 2024/2847) | Cybersecurity requirements cross-referenced in AI Act |
-| Product Liability Directive (2024/2853) | Liability framework for AI-embedded products |
-| AI Liability Directive — Proposal (COM/2022/496) | Proposed civil liability regime for AI systems |
-| Machinery Regulation (2023/1230) | Safety requirements for AI integrated into machinery |
-
-**Official Guidance**
-
-| Document | Source |
-|---|---|
-| EU AI Act FAQ / Implementation Guidelines | European Commission |
-| Codes of Practice for General-Purpose AI | EU AI Office |
-| AI Act Compliance Checker Flowchart v1.0 (Updated July 2025) | Future of Life Institute — decision tree mapping entity types, risk classification, and obligation triggers across Articles 5, 6, 25, 50, 51 |
-
-**Academic Sources**
-
-| Document | Source |
-|---|---|
-| "Truly Risk-Based Regulation of Artificial Intelligence: How to Implement the EU's AI Act" (Working Paper No. 101) | Martin Ebers — Stanford–Vienna Transatlantic Technology Law Forum |
-| "Interplay between the AI Act and the EU Digital Legislative Framework" | European Parliament, ITRE Committee Study |
-| "Systemic Data Bias in Real-World AI Systems: Technical Failures, Legal Gaps, and the Limits of the EU AI Act" | Falelakis, Dimara & Anagnostopoulos — MDPI *Information* |
-
-**Total: 14 documents → 3,230 indexed passages**
-
-## Background
-
-The EU AI Act (Regulation 2024/1689) enters full enforcement on 2 August 2026. 
-With 113 articles, 180 recitals, and 13 annexes, it presents a concrete 
-navigability problem: organisations need to determine whether their AI system 
-is high-risk, what obligations apply, and where exactly those obligations 
-are located across a complex legislative structure.
-
-This tool is an attempt to make that structure computationally navigable — 
-a question at the intersection of regulatory law and retrieval system design.
+This project explores how legal rules can be represented as transparent computational assessments without obscuring legal uncertainty. It is designed as a demonstrable Law & Technology portfolio project and as a prototype for real compliance workflow design.
 
 Built by a law student at Jilin University (Changchun, China).
 
-
 ## Disclaimer
 
-This tool provides preliminary guidance only and does not constitute legal advice. Always consult qualified legal counsel for compliance decisions.
-
-
+This prototype provides preliminary compliance guidance only. It does not constitute legal advice, and its findings should be reviewed by qualified legal professionals against the complete facts and current law.
