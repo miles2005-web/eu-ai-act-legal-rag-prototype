@@ -9,6 +9,14 @@ from src.assessment.demo import AssessmentWorkflowBundle, create_assessment_work
 from src.assessment.facts import UseDomain
 from src.assessment.models import TriState
 from src.assessment.report import AssessmentReport
+from src.ui import apply_enterprise_styles
+from src.ui.components import (
+    render_assessment_summary_card,
+    render_evidence_trace_card,
+    render_finding_card,
+    render_framework_card,
+    render_section_header,
+)
 
 
 APP_TITLE = "EU AI Act Compliance Assessment Platform"
@@ -104,10 +112,13 @@ def render_sidebar(
 def render_case_creation(bundle: AssessmentWorkflowBundle) -> None:
     """Collect case identity data and create an in-memory assessment case."""
 
-    st.subheader("Start an assessment")
-    st.write(
-        "Explore the prepared recruitment scenario or create a case using your "
-        "own facts."
+    render_section_header(
+        "Start an assessment",
+        eyebrow="Case workspace",
+        description=(
+            "Explore the prepared recruitment scenario or create a case using "
+            "your own facts."
+        ),
     )
     if st.button(
         "Load Recruitment AI Screening Demo",
@@ -152,17 +163,19 @@ def render_fact_collection(bundle: AssessmentWorkflowBundle, case_id: str) -> No
     assessment_case = bundle.case_service.get_case(case_id)
     facts = assessment_case.current_facts
 
-    st.subheader("2. Provide assessment facts")
+    render_section_header(
+        "Provide assessment facts",
+        eyebrow="Step 2",
+        description=(
+            "Unknown answers remain visible as missing information and do not "
+            "create a legal finding."
+        ),
+    )
     if st.session_state.get("demo_loaded"):
         st.info(
             "Recruitment AI Screening Demo loaded. Review or edit the populated "
             "facts before running the assessment."
         )
-    st.caption(
-        "Unknown answers are preserved as missing information and do not create "
-        "a legal finding."
-    )
-
     domains = list(DOMAIN_LABELS)
     influence_options = list(TRI_STATE_LABELS)
     with st.form("assessment_facts"):
@@ -204,7 +217,14 @@ def render_assessment_action(
 ) -> None:
     """Execute the existing assessment workflow on user request."""
 
-    st.subheader("3. Run assessment")
+    render_section_header(
+        "Run assessment",
+        eyebrow="Step 3",
+        description=(
+            "Apply the configured rules, resolve legal evidence, and build a "
+            "traceable preliminary report."
+        ),
+    )
     if st.button("Run assessment", type="primary", use_container_width=True):
         with st.spinner("Running assessment and resolving legal evidence..."):
             st.session_state.assessment_report = bundle.workflow.run(case_id)
@@ -214,67 +234,52 @@ def render_assessment_action(
 def render_report(report: AssessmentReport) -> None:
     """Present the structured report without adding legal conclusions."""
 
-    st.divider()
-    st.header("Assessment report")
-
-    primary_finding = report.findings[0] if report.findings else None
-    classification = (
-        primary_finding.status.value.replace("_", " ").title()
-        if primary_finding is not None
-        else "Not determined"
+    render_section_header(
+        "Assessment report",
+        eyebrow="Preliminary result",
+        description=(
+            "Review framework findings, reasoning, and supporting legal "
+            "authority."
+        ),
     )
-    review_status = (
-        "Legal review required"
-        if primary_finding is not None and primary_finding.requires_legal_review
-        else "No review flag raised"
-    )
-    classification_column, review_column, evidence_column = st.columns(3)
-    classification_column.metric("Preliminary classification", classification)
-    review_column.metric("Review status", review_status)
-    evidence_column.metric("Evidence records", len(report.evidence))
+    render_assessment_summary_card(report)
 
-    st.subheader("Report summary")
-    st.write(report.summary)
+    if report.findings_by_framework:
+        render_section_header("Framework overview")
+        framework_columns = st.columns(
+            min(len(report.findings_by_framework), 3)
+        )
+        for index, group in enumerate(report.findings_by_framework):
+            with framework_columns[index % len(framework_columns)]:
+                render_framework_card(group.framework, group.findings)
 
-    st.subheader("Findings")
+    render_section_header("Findings")
     if not report.findings:
         st.info("No legal finding was produced from the currently available facts.")
     for finding in report.findings:
-        st.markdown(f"### {finding.title}")
-        st.write(
-            "**Preliminary classification:** "
-            f"`{finding.status.value.replace('_', ' ')}`"
+        binding = next(
+            (
+                item
+                for item in report.evidence_bindings
+                if item.finding_id == finding.finding_id
+            ),
+            None,
         )
-        st.write(finding.summary)
-        st.markdown("**Legal basis**")
-        for basis in finding.legal_basis:
-            st.write(f"- {basis.citation} — `{basis.instrument}`")
-        if finding.requires_legal_review:
-            st.warning(
-                "Review status: further legal review is required. This is a "
-                "preliminary classification, not a definitive legal conclusion."
-            )
-        else:
-            st.success("Review status: no additional review flag was raised.")
-        with st.expander("Reasoning trace", expanded=True):
-            for trace_entry in finding.trace:
-                st.markdown(f"**{trace_entry.description}**")
-                st.write(f"Result: `{trace_entry.result}`")
-                if trace_entry.fact_refs:
-                    st.caption("Facts: " + ", ".join(trace_entry.fact_refs))
+        render_finding_card(
+            finding,
+            evidence_count=len(binding.evidence_refs) if binding else 0,
+        )
 
-    st.subheader("Evidence")
-    st.caption(f"{len(report.evidence)} supporting evidence record(s)")
+    render_section_header(
+        "Evidence trace",
+        description=f"{len(report.evidence)} supporting evidence record(s).",
+    )
     if not report.evidence:
         st.info("No supporting evidence was resolved for the current findings.")
     for evidence in report.evidence:
-        with st.expander(f"{evidence.citation} — {evidence.legal_source}"):
-            st.write(f"**Authority:** {evidence.authority_level.value}")
-            if evidence.document_version:
-                st.write(f"**Document version:** {evidence.document_version}")
-            st.write(evidence.excerpt)
+        render_evidence_trace_card(evidence)
 
-    st.subheader("Missing information")
+    render_section_header("Missing information")
     if report.missing_information:
         for item in report.missing_information:
             st.write(f"- `{item.fact_path}` ({item.reason.value})")
@@ -293,7 +298,8 @@ def render_report(report: AssessmentReport) -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title=APP_TITLE, page_icon="⚖️", layout="centered")
+    st.set_page_config(page_title=APP_TITLE, page_icon="⚖️", layout="wide")
+    apply_enterprise_styles()
     st.title(APP_TITLE)
     st.write(
         "A legal engineering prototype for preliminary, evidence-grounded "
