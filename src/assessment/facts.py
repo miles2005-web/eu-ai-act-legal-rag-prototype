@@ -182,6 +182,17 @@ class DataProtectionFacts(SerializableModel):
 
 
 @dataclass(slots=True)
+class DataActFacts(SerializableModel):
+    """Facts reserved for future EU Data Act relevance assessments."""
+
+    connected_product: TriState = TriState.UNKNOWN
+    related_service: TriState = TriState.UNKNOWN
+    data_generated: TriState = TriState.UNKNOWN
+    data_holder_identified: TriState = TriState.UNKNOWN
+    user_or_third_party_access_request: TriState = TriState.UNKNOWN
+
+
+@dataclass(slots=True)
 class FactMetadata(SerializableModel):
     source: FactSource = FactSource.UNKNOWN
     question_id: str | None = None
@@ -204,4 +215,5 @@ class AssessmentFacts(SerializableModel):
     data_protection: DataProtectionFacts = field(
         default_factory=DataProtectionFacts
     )
+    data_act: DataActFacts = field(default_factory=DataActFacts)
     fact_metadata: dict[str, FactMetadata] = field(default_factory=dict)
