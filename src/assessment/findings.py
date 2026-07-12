@@ -31,6 +31,7 @@ class FindingCategory(str, Enum):
     HIGH_RISK_ARTICLE_6_3_EXCEPTION = "high_risk_article_6_3_exception"
     OBLIGATION_GROUP = "obligation_group"
     INFORMATION_GAP = "information_gap"
+    DATA_PROTECTION = "data_protection"
 
 
 @dataclass(slots=True)
