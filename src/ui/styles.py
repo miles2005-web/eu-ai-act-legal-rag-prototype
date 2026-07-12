@@ -38,8 +38,8 @@ ENTERPRISE_STYLES = """
 
 .block-container {
     max-width: 1180px;
-    padding-top: 3.25rem;
-    padding-bottom: 4rem;
+    padding-top: 2.25rem;
+    padding-bottom: 3rem;
 }
 
 h1, h2, h3, h4 {
@@ -83,7 +83,7 @@ p, label, [data-testid="stCaptionContainer"] {
 }
 
 .ui-section-header {
-    margin: 2.6rem 0 1.1rem;
+    margin: 1.9rem 0 0.85rem;
 }
 
 .ui-section-eyebrow {
@@ -169,6 +169,126 @@ p, label, [data-testid="stCaptionContainer"] {
 
 .ui-muted {
     color: var(--ui-text-secondary);
+}
+
+.ui-product-mark {
+    border-bottom: 1px solid var(--ui-border);
+    margin-bottom: 1.1rem;
+    padding-bottom: 1rem;
+}
+
+.ui-product-mark__eyebrow {
+    color: var(--ui-accent);
+    font-size: 0.68rem;
+    font-weight: 750;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.ui-product-mark__name {
+    color: var(--ui-text);
+    font-size: 1.05rem;
+    font-weight: 680;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    margin-top: 0.32rem;
+}
+
+.ui-product-mark__meta {
+    color: var(--ui-text-secondary);
+    font-size: 0.76rem;
+    margin-top: 0.28rem;
+}
+
+.ui-hero {
+    padding: 1.2rem 0 1rem;
+}
+
+.ui-hero__eyebrow {
+    color: var(--ui-accent);
+    font-size: 0.75rem;
+    font-weight: 750;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.7rem;
+    text-transform: uppercase;
+}
+
+.ui-hero__title {
+    color: var(--ui-text);
+    font-size: clamp(2.3rem, 5vw, 4.15rem);
+    font-weight: 690;
+    letter-spacing: -0.055em;
+    line-height: 0.98;
+    margin: 0;
+    max-width: 950px;
+}
+
+.ui-hero__summary {
+    color: #424245;
+    font-size: 1.12rem;
+    line-height: 1.55;
+    margin: 1.15rem 0 0;
+    max-width: 790px;
+}
+
+.ui-framework-strip {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1.1rem;
+}
+
+.ui-capability-number {
+    color: var(--ui-accent);
+    font-size: 0.72rem;
+    font-weight: 750;
+    letter-spacing: 0.08em;
+}
+
+.ui-capability-title {
+    color: var(--ui-text);
+    font-size: 0.98rem;
+    font-weight: 680;
+    margin: 0.5rem 0 0.3rem;
+}
+
+.ui-capability-copy {
+    color: var(--ui-text-secondary);
+    font-size: 0.84rem;
+    line-height: 1.45;
+    margin: 0;
+}
+
+.ui-demo-label {
+    color: var(--ui-accent);
+    font-size: 0.7rem;
+    font-weight: 750;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.ui-demo-title {
+    color: var(--ui-text);
+    font-size: 1.35rem;
+    font-weight: 680;
+    letter-spacing: -0.025em;
+    margin: 0.55rem 0 0.55rem;
+}
+
+.ui-demo-copy {
+    color: #515154;
+    font-size: 0.91rem;
+    line-height: 1.5;
+    min-height: 4.1rem;
+}
+
+.ui-demo-meta {
+    border-top: 1px solid var(--ui-border);
+    color: var(--ui-text-secondary);
+    font-size: 0.78rem;
+    margin-top: 0.9rem;
+    padding-top: 0.75rem;
 }
 
 .ui-mono {

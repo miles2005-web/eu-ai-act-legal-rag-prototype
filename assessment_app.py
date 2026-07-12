@@ -26,7 +26,7 @@ from src.ui.components import (
 )
 
 
-APP_TITLE = "EU AI Act Compliance Assessment Platform"
+APP_TITLE = "EU Digital Regulation Assessment Platform"
 PROJECT_ROOT = Path(__file__).resolve().parent
 INDUSTRIAL_FIXTURE_PATH = (
     PROJECT_ROOT / "tests" / "fixtures" / "industrial_ai_case.json"
@@ -126,31 +126,40 @@ def render_sidebar(
     """Show presentation-only workflow progress for the current session."""
 
     with st.sidebar:
-        st.caption("COMPLIANCE WORKSPACE")
-        st.markdown("### Assessment navigation")
+        st.markdown(
+            """
+            <div class="ui-product-mark">
+              <div class="ui-product-mark__eyebrow">Legal engineering</div>
+              <div class="ui-product-mark__name">EU Digital Regulation</div>
+              <div class="ui-product-mark__meta">Assessment Platform · Prototype</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.caption("PRODUCT NAVIGATION")
         current_view = st.session_state.get("assessment_view", VIEW_LANDING)
         if st.button(
-            "Cases & demos",
-            use_container_width=True,
-            type="primary" if current_view == VIEW_LANDING else "secondary",
-        ):
-            navigate(VIEW_LANDING)
-        if st.button(
-            "Assessment workspace",
+            "Assessment",
             use_container_width=True,
             disabled=case_id is None,
             type="primary" if current_view == VIEW_WORKSPACE else "secondary",
         ):
             navigate(VIEW_WORKSPACE)
         if st.button(
-            "Assessment result",
+            "Demo cases",
+            use_container_width=True,
+            type="primary" if current_view == VIEW_LANDING else "secondary",
+        ):
+            navigate(VIEW_LANDING)
+        if st.button(
+            "Regulatory frameworks",
             use_container_width=True,
             disabled=report is None,
             type="primary" if current_view == VIEW_RESULTS else "secondary",
         ):
             navigate(VIEW_RESULTS)
         if st.button(
-            "Evidence trace",
+            "Evidence engine",
             use_container_width=True,
             disabled=report is None,
             type="primary" if current_view == VIEW_EVIDENCE else "secondary",
@@ -182,9 +191,9 @@ def render_sidebar(
         st.progress(sum(complete for _, complete in statuses) / len(statuses))
 
         st.divider()
-        st.caption("CONFIGURED ASSESSMENT SCOPE")
-        st.write("EU AI Act employment high-risk screening")
-        st.caption("Article 6 · Annex III point 4(a)")
+        st.caption("REGULATORY COVERAGE")
+        st.write("EU AI Act · GDPR · EU Data Act")
+        st.caption("Structured rules and versioned legal evidence")
 
         if case_id is not None and st.button("Start a new assessment"):
             st.session_state.assessment_workflow_bundle = (
@@ -202,32 +211,65 @@ def render_sidebar(
 def render_case_creation(bundle: AssessmentWorkflowBundle) -> None:
     """Collect case identity data and create an in-memory assessment case."""
 
-    st.markdown("# AI governance assessment workspace")
     st.markdown(
-        "### Structured regulatory assessment, grounded in legal evidence."
-    )
-    st.write(
-        "Create a compliance case, establish the relevant facts, run "
-        "deterministic legal rules, and review a traceable assessment report."
+        """
+        <section class="ui-hero">
+          <div class="ui-hero__eyebrow">EU compliance intelligence</div>
+          <h1 class="ui-hero__title">EU Digital Regulation<br>Assessment Platform</h1>
+          <p class="ui-hero__summary">
+            Turn system facts into preliminary, evidence-grounded assessments
+            across Europe's core digital regulatory frameworks.
+          </p>
+          <div class="ui-framework-strip">
+            <span class="ui-badge ui-badge--accent">EU AI Act</span>
+            <span class="ui-badge ui-badge--neutral">GDPR</span>
+            <span class="ui-badge ui-badge--neutral">EU Data Act</span>
+          </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
     )
     st.caption("Prototype only — this output does not constitute legal advice.")
 
     capability_columns = st.columns(4)
     capabilities = (
-        ("Structured facts", "Capture legally relevant facts without inference."),
-        ("Versioned rules", "Apply deterministic legal assessment logic."),
-        ("Legal evidence", "Resolve supporting authority from legal corpora."),
-        ("Traceable reports", "Connect facts, findings, rules, and citations."),
+        (
+            "01",
+            "Establish the facts",
+            "Capture legally relevant system, use-case, and data facts without inference.",
+        ),
+        (
+            "02",
+            "Run versioned rules",
+            "Apply deterministic regulatory screening with explicit rule metadata.",
+        ),
+        (
+            "03",
+            "Ground every finding",
+            "Resolve authoritative provisions from instrument-aware legal corpora.",
+        ),
+        (
+            "04",
+            "Review the trace",
+            "Connect facts, findings, legal basis, and stable evidence identities.",
+        ),
     )
-    for column, (heading, description) in zip(
+    for column, (number, heading, description) in zip(
         capability_columns,
         capabilities,
         strict=True,
     ):
         with column:
             with st.container(border=True):
-                st.markdown(f"**{heading}**")
-                st.caption(description)
+                st.markdown(
+                    '<div class="ui-capability-number">'
+                    f"{number}</div>"
+                    '<div class="ui-capability-title">'
+                    f"{heading}</div>"
+                    '<p class="ui-capability-copy">'
+                    f"{description}</p>",
+                    unsafe_allow_html=True,
+                )
 
     active_case_id = st.session_state.get("assessment_case_id")
     if active_case_id is not None:
@@ -261,13 +303,20 @@ def render_case_creation(bundle: AssessmentWorkflowBundle) -> None:
     recruitment_column, industrial_column = st.columns(2)
     with recruitment_column:
         with st.container(border=True):
-            st.caption("EMPLOYMENT · EU AI ACT")
-            st.markdown("### Recruitment AI Screening")
-            st.write(
-                "An AI system screens CVs, ranks candidates, and materially "
-                "influences recruitment decisions."
+            st.markdown(
+                """
+                <div class="ui-demo-label">Employment · EU AI Act</div>
+                <div class="ui-demo-title">Recruitment AI Screening</div>
+                <div class="ui-demo-copy">
+                  Assess an AI system that screens CVs, ranks candidates, and
+                  materially influences access to employment.
+                </div>
+                <div class="ui-demo-meta">
+                  Prepared facts · High-risk classification screening
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-            st.caption("Prepared facts · Preliminary high-risk screening")
             if st.button(
                 "Open recruitment demo",
                 type="primary",
@@ -276,15 +325,23 @@ def render_case_creation(bundle: AssessmentWorkflowBundle) -> None:
                 load_recruitment_demo(bundle)
     with industrial_column:
         with st.container(border=True):
-            st.caption("INDUSTRIAL DATA · CONNECTED MACHINERY")
-            st.markdown("### Industrial AI Monitoring")
-            st.write(
-                "A connected machinery monitoring service generates operational "
-                "data requested by an external maintenance provider."
+            st.markdown(
+                """
+                <div class="ui-demo-label">Industrial data · EU Data Act</div>
+                <div class="ui-demo-title">Industrial AI Monitoring</div>
+                <div class="ui-demo-copy">
+                  Assess connected machinery monitoring that generates operational
+                  data requested by an external maintenance provider.
+                </div>
+                <div class="ui-demo-meta">
+                  Prepared facts · Connected-product relevance screening
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-            st.caption("Prepared facts · Cross-regulatory demonstration case")
             if st.button(
                 "Open industrial demo",
+                type="primary",
                 use_container_width=True,
             ):
                 load_industrial_demo(bundle)
