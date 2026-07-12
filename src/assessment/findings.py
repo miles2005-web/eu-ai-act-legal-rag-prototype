@@ -32,6 +32,7 @@ class FindingCategory(str, Enum):
     OBLIGATION_GROUP = "obligation_group"
     INFORMATION_GAP = "information_gap"
     DATA_PROTECTION = "data_protection"
+    DATA_GOVERNANCE = "data_governance"
 
 
 @dataclass(slots=True)

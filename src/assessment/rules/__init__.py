@@ -2,6 +2,7 @@
 
 from src.assessment.rules.ai_act_high_risk import AIActHighRiskEmploymentRule
 from src.assessment.rules.base import AssessmentRule, RuleDefinitionError
+from src.assessment.rules.data_act_relevance import EUDataActRelevanceRule
 from src.assessment.rules.gdpr_article22 import GDPRArticle22RelevanceRule
 from src.assessment.rules.registry import (
     DuplicateRuleError,
@@ -13,6 +14,7 @@ __all__ = [
     "AIActHighRiskEmploymentRule",
     "AssessmentRule",
     "DuplicateRuleError",
+    "EUDataActRelevanceRule",
     "GDPRArticle22RelevanceRule",
     "RuleDefinitionError",
     "RuleNotFoundError",
