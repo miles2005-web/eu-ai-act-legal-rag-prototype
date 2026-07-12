@@ -19,6 +19,7 @@ from src.assessment.evidence.corpus_metadata import (
     CORPUS_METADATA_SCHEMA_VERSION,
     CorpusMetadataV2,
 )
+from src.assessment.evidence.citations import expand_citation_reference
 from src.assessment.evidence.models import AuthorityLevel, Evidence
 
 
@@ -103,21 +104,24 @@ class MultiCorpusLegalEvidenceRetriever(LegalEvidenceRetriever):
         )
         evidence: list[Evidence] = []
         seen_ids: set[str] = set()
-        for retriever in self._retrievers:
-            remaining = limit - len(evidence)
-            if remaining <= 0:
-                break
-            for item in retriever.retrieve(
-                legal_source,
-                citation,
-                limit=remaining,
-            ):
-                if item.evidence_id in seen_ids:
-                    continue
-                evidence.append(item)
-                seen_ids.add(item.evidence_id)
-                if len(evidence) == limit:
+        for resolved_citation in expand_citation_reference(citation):
+            for retriever in self._retrievers:
+                remaining = limit - len(evidence)
+                if remaining <= 0:
                     break
+                for item in retriever.retrieve(
+                    legal_source,
+                    resolved_citation,
+                    limit=remaining,
+                ):
+                    if item.evidence_id in seen_ids:
+                        continue
+                    evidence.append(item)
+                    seen_ids.add(item.evidence_id)
+                    if len(evidence) == limit:
+                        break
+            if len(evidence) == limit:
+                break
         return evidence
 
     def retrieve_many(

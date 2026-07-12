@@ -87,6 +87,47 @@ class MultiCorpusEvidenceRetrieverTests(unittest.TestCase):
             data_act_record["metadata"]["stable_evidence_id"],
         )
 
+    def test_data_act_range_retrieves_atomic_citations_in_order(self) -> None:
+        records = [
+            _v2_record(
+                instrument_id="EU_DATA_ACT",
+                version="Regulation (EU) 2023/2854",
+                citation=citation,
+                excerpt=excerpt,
+                article_number="2",
+            )
+            for citation, excerpt in (
+                ("Article 2(5)", "Connected product definition."),
+                ("Article 2(6)", "Related service definition."),
+            )
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            existing = Path(directory) / "existing.json"
+            candidate = Path(directory) / "data-act-candidate.json"
+            self._write(existing, [])
+            self._write(candidate, records)
+            retriever = MultiCorpusLegalEvidenceRetriever.from_store_paths(
+                existing,
+                [candidate],
+            )
+
+            evidence = retriever.retrieve(
+                "EU_DATA_ACT",
+                "Article 2(5)-(6)",
+            )
+
+        self.assertEqual(
+            [item.citation for item in evidence],
+            ["Article 2(5)", "Article 2(6)"],
+        )
+        self.assertEqual(
+            [item.evidence_id for item in evidence],
+            [
+                records[0]["metadata"]["stable_evidence_id"],
+                records[1]["metadata"]["stable_evidence_id"],
+            ],
+        )
+
     def test_existing_ai_act_retrieval_is_unchanged(self) -> None:
         direct = VectorStoreJSONEvidenceRetriever(
             PROJECT_ROOT / "vector_store.json"

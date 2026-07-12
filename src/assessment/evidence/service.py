@@ -7,6 +7,7 @@ from collections.abc import Iterable
 from copy import deepcopy
 from dataclasses import dataclass, field
 
+from src.assessment.evidence.citations import expand_citation_reference
 from src.assessment.evidence.models import Evidence, FindingEvidenceBinding
 from src.assessment.findings import Finding, LegalBasis
 from src.assessment.models import SerializableModel
@@ -109,10 +110,14 @@ class InMemoryEvidenceService(EvidenceService):
     def _matching_ids(self, legal_basis: LegalBasis) -> tuple[str, ...]:
         if not isinstance(legal_basis, LegalBasis):
             raise TypeError("finding legal_basis must contain LegalBasis values")
-        key = self._evidence_key(legal_basis.instrument, legal_basis.citation)
-        return tuple(self._ids_by_reference.get(key, ()))
+        matching_ids: list[str] = []
+        for citation in expand_citation_reference(legal_basis.citation):
+            key = self._evidence_key(legal_basis.instrument, citation)
+            for evidence_id in self._ids_by_reference.get(key, ()):
+                if evidence_id not in matching_ids:
+                    matching_ids.append(evidence_id)
+        return tuple(matching_ids)
 
     @staticmethod
     def _evidence_key(legal_source: str, citation: str) -> tuple[str, str]:
         return legal_source.strip().casefold(), citation.strip().casefold()
-

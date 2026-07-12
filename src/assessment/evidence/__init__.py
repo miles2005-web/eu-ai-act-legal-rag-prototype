@@ -6,6 +6,7 @@ from src.assessment.evidence.catalog import (
     LegalSourceCatalogError,
     load_legal_source_catalog,
 )
+from src.assessment.evidence.citations import expand_citation_reference
 from src.assessment.evidence.corpus_metadata import (
     CORPUS_METADATA_SCHEMA_VERSION,
     CorpusMetadataV2,
@@ -54,4 +55,5 @@ __all__ = [
     "normalized_excerpt_hash",
     "stable_evidence_digest",
     "stable_evidence_id",
+    "expand_citation_reference",
 ]
