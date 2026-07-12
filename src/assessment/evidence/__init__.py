@@ -6,6 +6,14 @@ from src.assessment.evidence.catalog import (
     LegalSourceCatalogError,
     load_legal_source_catalog,
 )
+from src.assessment.evidence.corpus_metadata import (
+    CORPUS_METADATA_SCHEMA_VERSION,
+    CorpusMetadataV2,
+    normalize_evidence_excerpt,
+    normalized_excerpt_hash,
+    stable_evidence_digest,
+    stable_evidence_id,
+)
 from src.assessment.evidence.models import (
     AuthorityLevel,
     Evidence,
@@ -25,6 +33,8 @@ from src.assessment.evidence.service import (
 
 __all__ = [
     "AuthorityLevel",
+    "CORPUS_METADATA_SCHEMA_VERSION",
+    "CorpusMetadataV2",
     "DuplicateEvidenceError",
     "Evidence",
     "EvidenceService",
@@ -38,4 +48,8 @@ __all__ = [
     "VectorStoreFormatError",
     "VectorStoreJSONEvidenceRetriever",
     "load_legal_source_catalog",
+    "normalize_evidence_excerpt",
+    "normalized_excerpt_hash",
+    "stable_evidence_digest",
+    "stable_evidence_id",
 ]
