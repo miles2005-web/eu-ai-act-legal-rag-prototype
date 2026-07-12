@@ -42,6 +42,122 @@ class LegalEvidenceRetriever(ABC):
         raise NotImplementedError
 
 
+class MultiCorpusLegalEvidenceRetriever(LegalEvidenceRetriever):
+    """Query independent legal corpora in deterministic configured order.
+
+    Each child retriever remains responsible for its own storage format and
+    Evidence conversion. This allows a metadata-v2 candidate corpus to sit
+    alongside the existing legacy store without merging either artifact.
+    """
+
+    def __init__(self, retrievers: Iterable[LegalEvidenceRetriever]) -> None:
+        configured = tuple(retrievers)
+        if not configured:
+            raise ValueError("retrievers must contain at least one retriever")
+        if any(
+            not isinstance(retriever, LegalEvidenceRetriever)
+            for retriever in configured
+        ):
+            raise TypeError(
+                "retrievers must contain LegalEvidenceRetriever instances"
+            )
+        self._retrievers = configured
+
+    @classmethod
+    def from_store_paths(
+        cls,
+        existing_store_path: str | Path,
+        candidate_store_paths: Iterable[str | Path],
+        *,
+        source_catalog: LegalSourceCatalog | None = None,
+    ) -> MultiCorpusLegalEvidenceRetriever:
+        """Configure the existing store first, then separate candidates."""
+
+        if isinstance(candidate_store_paths, (str, bytes, Path)):
+            raise TypeError("candidate_store_paths must be an iterable of paths")
+        catalog = source_catalog or load_legal_source_catalog()
+        paths = (Path(existing_store_path),) + tuple(
+            Path(path) for path in candidate_store_paths
+        )
+        return cls(
+            VectorStoreJSONEvidenceRetriever(
+                path,
+                source_catalog=catalog,
+            )
+            for path in paths
+        )
+
+    def retrieve(
+        self,
+        legal_source: str,
+        citation: str,
+        *,
+        limit: int = 5,
+    ) -> list[Evidence]:
+        """Merge child results by corpus order, de-duplicated by Evidence ID."""
+
+        VectorStoreJSONEvidenceRetriever._validate_reference(
+            legal_source,
+            citation,
+            limit,
+        )
+        evidence: list[Evidence] = []
+        seen_ids: set[str] = set()
+        for retriever in self._retrievers:
+            remaining = limit - len(evidence)
+            if remaining <= 0:
+                break
+            for item in retriever.retrieve(
+                legal_source,
+                citation,
+                limit=remaining,
+            ):
+                if item.evidence_id in seen_ids:
+                    continue
+                evidence.append(item)
+                seen_ids.add(item.evidence_id)
+                if len(evidence) == limit:
+                    break
+        return evidence
+
+    def retrieve_many(
+        self,
+        legal_references: Iterable[tuple[str, str]],
+        *,
+        limit_per_reference: int = 5,
+    ) -> list[Evidence]:
+        """Retrieve references in declaration order across frameworks."""
+
+        if isinstance(legal_references, (str, bytes, Mapping)):
+            raise TypeError(
+                "legal_references must be an iterable of source/citation pairs"
+            )
+        if (
+            isinstance(limit_per_reference, bool)
+            or not isinstance(limit_per_reference, int)
+            or limit_per_reference <= 0
+        ):
+            raise ValueError("limit_per_reference must be a positive integer")
+
+        evidence: list[Evidence] = []
+        seen_ids: set[str] = set()
+        for reference in legal_references:
+            if not isinstance(reference, tuple) or len(reference) != 2:
+                raise TypeError(
+                    "legal references must be (legal_source, citation) tuples"
+                )
+            legal_source, citation = reference
+            for item in self.retrieve(
+                legal_source,
+                citation,
+                limit=limit_per_reference,
+            ):
+                if item.evidence_id not in seen_ids:
+                    evidence.append(item)
+                    seen_ids.add(item.evidence_id)
+        return evidence
+
+
 @dataclass(frozen=True, slots=True)
 class _VectorStoreRecord:
     record_id: str

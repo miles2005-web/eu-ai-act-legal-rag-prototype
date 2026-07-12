@@ -21,6 +21,7 @@ from src.assessment.evidence.models import (
 )
 from src.assessment.evidence.retriever import (
     LegalEvidenceRetriever,
+    MultiCorpusLegalEvidenceRetriever,
     VectorStoreFormatError,
     VectorStoreJSONEvidenceRetriever,
 )
@@ -42,6 +43,7 @@ __all__ = [
     "FindingEvidenceBinding",
     "InMemoryEvidenceService",
     "LegalEvidenceRetriever",
+    "MultiCorpusLegalEvidenceRetriever",
     "LegalSource",
     "LegalSourceCatalog",
     "LegalSourceCatalogError",
