@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
+from src.assessment.frameworks import RegulatoryFramework
 from src.assessment.models import SerializableModel, new_identifier
 
 
@@ -55,6 +56,7 @@ class Finding(SerializableModel):
     status: FindingStatus
     title: str
     summary: str
+    framework: RegulatoryFramework = RegulatoryFramework.UNKNOWN
     finding_id: str = field(default_factory=new_identifier)
     assessment_run_id: str | None = None
     rule_id: str | None = None

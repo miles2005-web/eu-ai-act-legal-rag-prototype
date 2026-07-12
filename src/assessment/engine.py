@@ -6,6 +6,7 @@ from copy import deepcopy
 
 from src.assessment.facts import AssessmentFacts
 from src.assessment.findings import Finding
+from src.assessment.frameworks import RegulatoryFramework
 from src.assessment.requirements import (
     FactRequirementValidator,
     RuleRequirementResult,
@@ -122,9 +123,18 @@ class AssessmentEngine:
                 f"Rule {rule.rule_id!r} returned mismatched rule_version "
                 f"{finding.rule_version!r}"
             )
+        if (
+            finding.framework is not RegulatoryFramework.UNKNOWN
+            and finding.framework is not rule.framework
+        ):
+            raise RuleOutputError(
+                f"Rule {rule.rule_id!r} returned framework "
+                f"{finding.framework.value!r}, expected {rule.framework.value!r}"
+            )
 
         finding.rule_id = rule.rule_id
         finding.rule_version = rule.version
+        finding.framework = rule.framework
         if not finding.legal_basis:
             finding.legal_basis = deepcopy(list(rule.legal_basis))
         return finding

@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import unittest
 
-from src.assessment import AssessmentEngine, AssessmentFacts, FindingStatus, TriState
+from src.assessment import (
+    AssessmentEngine,
+    AssessmentFacts,
+    FindingStatus,
+    RegulatoryFramework,
+    TriState,
+)
 from src.assessment.facts import UseDomain
 from src.assessment.requirements import MissingFactReason
 from src.assessment.rules import AIActHighRiskEmploymentRule, RuleRegistry
@@ -14,6 +20,12 @@ class AIActHighRiskEmploymentRuleTests(unittest.TestCase):
     def setUp(self) -> None:
         self.rule = AIActHighRiskEmploymentRule()
         self.engine = AssessmentEngine(RuleRegistry([self.rule]))
+
+    def test_rule_declares_eu_ai_act_framework(self) -> None:
+        self.assertEqual(
+            self.rule.framework,
+            RegulatoryFramework.EU_AI_ACT,
+        )
 
     def test_recruitment_ai_ranking_candidates_potentially_applies(self) -> None:
         facts = AssessmentFacts()
@@ -31,6 +43,7 @@ class AIActHighRiskEmploymentRuleTests(unittest.TestCase):
         self.assertEqual(result.missing_fact_requirements, [])
         self.assertEqual(len(result.findings), 1)
         finding = result.findings[0]
+        self.assertEqual(finding.framework, RegulatoryFramework.EU_AI_ACT)
         self.assertEqual(finding.status, FindingStatus.POTENTIALLY_APPLIES)
         self.assertEqual(finding.category.value, "high_risk")
         self.assertTrue(finding.requires_legal_review)

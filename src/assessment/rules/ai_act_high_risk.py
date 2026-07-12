@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from src.assessment.facts import AssessmentFacts, UseDomain
+from src.assessment.frameworks import RegulatoryFramework
 from src.assessment.findings import (
     Finding,
     FindingCategory,
@@ -24,6 +25,7 @@ class AIActHighRiskEmploymentRule(AssessmentRule):
     must not be treated as a definitive high-risk classification.
     """
 
+    framework = RegulatoryFramework.EU_AI_ACT
     rule_id = "AI_ACT_HIGH_RISK_EMPLOYMENT"
     version = "2026.1"
     category = FindingCategory.HIGH_RISK
@@ -103,6 +105,7 @@ class AIActHighRiskEmploymentRule(AssessmentRule):
 
         if potentially_applies:
             return Finding(
+                framework=self.framework,
                 category=self.category,
                 issue_code="AIA_HIGH_RISK_EMPLOYMENT_PRELIMINARY",
                 status=FindingStatus.POTENTIALLY_APPLIES,
@@ -130,6 +133,7 @@ class AIActHighRiskEmploymentRule(AssessmentRule):
             )
 
         return Finding(
+            framework=self.framework,
             category=self.category,
             issue_code="AIA_HIGH_RISK_EMPLOYMENT_PRELIMINARY",
             status=FindingStatus.DOES_NOT_APPLY,
@@ -189,4 +193,3 @@ class AIActHighRiskEmploymentRule(AssessmentRule):
         if not materially_influences:
             reasons.append("NO_MATERIAL_DECISION_INFLUENCE")
         return reasons
-

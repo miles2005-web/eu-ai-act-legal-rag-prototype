@@ -22,6 +22,7 @@ from src.assessment.evidence import (
 )
 from src.assessment.facts import AssessmentFacts
 from src.assessment.findings import Finding, FindingCategory, FindingStatus, LegalBasis
+from src.assessment.frameworks import RegulatoryFramework
 from src.assessment.models import AssessmentRun, AssessmentRunStatus, TriState
 from src.assessment.questionnaire import (
     AnswerType,
@@ -94,6 +95,7 @@ __all__ = [
     "QuestionNotFoundError",
     "QuestionOption",
     "QuestionRegistry",
+    "RegulatoryFramework",
     "ReportBuildError",
     "ReportBuilder",
     "RuleExecutionFailure",

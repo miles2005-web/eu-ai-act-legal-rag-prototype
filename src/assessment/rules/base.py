@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 
 from src.assessment.facts import AssessmentFacts
 from src.assessment.findings import Finding, FindingCategory, LegalBasis
+from src.assessment.frameworks import RegulatoryFramework
 
 
 class RuleDefinitionError(ValueError):
@@ -20,6 +21,7 @@ class AssessmentRule(ABC):
     to one ``Finding``. The interface itself performs no legal analysis.
     """
 
+    framework: RegulatoryFramework = RegulatoryFramework.UNKNOWN
     rule_id: str
     version: str
     category: FindingCategory
@@ -43,6 +45,12 @@ class AssessmentRule(ABC):
         if not isinstance(version, str) or not version.strip():
             raise RuleDefinitionError(
                 f"Rule {rule_id!r} must define a non-empty version"
+            )
+
+        framework = getattr(self, "framework", RegulatoryFramework.UNKNOWN)
+        if not isinstance(framework, RegulatoryFramework):
+            raise RuleDefinitionError(
+                f"Rule {rule_id!r} must define a RegulatoryFramework"
             )
 
         category = getattr(self, "category", None)
@@ -83,4 +91,3 @@ class AssessmentRule(ABC):
             raise RuleDefinitionError(
                 f"Rule {rule_id!r} contains incomplete legal basis metadata"
             )
-
