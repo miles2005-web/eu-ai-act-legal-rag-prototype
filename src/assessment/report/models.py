@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from src.assessment.evidence.models import Evidence, FindingEvidenceBinding
 from src.assessment.findings import Finding
+from src.assessment.frameworks import RegulatoryFramework
 from src.assessment.models import SerializableModel
 from src.assessment.requirements import MissingFactReason
 from src.assessment.results import RuleExecutionFailure
@@ -31,6 +32,22 @@ class RuleVersionMetadata(SerializableModel):
 
 
 @dataclass(slots=True)
+class FrameworkFindings(SerializableModel):
+    """Findings belonging to one regulatory framework."""
+
+    framework: RegulatoryFramework
+    findings: list[Finding]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.framework, RegulatoryFramework):
+            raise TypeError("framework must be a RegulatoryFramework")
+        if any(not isinstance(finding, Finding) for finding in self.findings):
+            raise TypeError("findings must contain Finding instances")
+        if any(finding.framework is not self.framework for finding in self.findings):
+            raise ValueError("all findings must match the group framework")
+
+
+@dataclass(slots=True)
 class AssessmentReport(SerializableModel):
     """Traceable, deterministic compliance assessment output."""
 
@@ -47,6 +64,7 @@ class AssessmentReport(SerializableModel):
     rule_versions: list[RuleVersionMetadata]
     execution_failures: list[RuleExecutionFailure]
     report_version: str
+    findings_by_framework: list[FrameworkFindings] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         for field_name in (
@@ -66,4 +84,3 @@ class AssessmentReport(SerializableModel):
             for recommendation in self.recommendations
         ):
             raise ValueError("recommendations must contain non-empty strings")
-

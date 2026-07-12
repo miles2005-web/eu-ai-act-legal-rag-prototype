@@ -44,6 +44,7 @@ from src.assessment.requirements import (
 )
 from src.assessment.report import (
     AssessmentReport,
+    FrameworkFindings,
     MissingInformation,
     ReportBuildError,
     ReportBuilder,
@@ -82,6 +83,7 @@ __all__ = [
     "FindingCategory",
     "FindingEvidenceBinding",
     "FindingStatus",
+    "FrameworkFindings",
     "InMemoryEvidenceService",
     "InvalidQuestionFactPathError",
     "LegalEvidenceRetriever",

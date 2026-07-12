@@ -9,8 +9,10 @@ import json
 
 from src.assessment.evidence.service import EvidenceServiceResult
 from src.assessment.findings import Finding, FindingStatus
+from src.assessment.frameworks import RegulatoryFramework
 from src.assessment.report.models import (
     AssessmentReport,
+    FrameworkFindings,
     MissingInformation,
     RuleVersionMetadata,
 )
@@ -32,6 +34,12 @@ class ReportBuilder:
         FindingStatus.DOES_NOT_APPLY,
         FindingStatus.UNDETERMINED,
         FindingStatus.NOT_ASSESSED,
+    )
+    _FRAMEWORK_ORDER = (
+        RegulatoryFramework.EU_AI_ACT,
+        RegulatoryFramework.GDPR,
+        RegulatoryFramework.EU_DATA_ACT,
+        RegulatoryFramework.UNKNOWN,
     )
 
     def __init__(self, *, report_version: str = VERSION) -> None:
@@ -66,6 +74,9 @@ class ReportBuilder:
         )
         assessment_reference = self._assessment_reference(assessment_result)
         report_id = self._report_id(assessment_result, evidence_result)
+        findings_by_framework = self._build_framework_findings(
+            assessment_result.findings
+        )
 
         return AssessmentReport(
             report_id=report_id,
@@ -81,7 +92,26 @@ class ReportBuilder:
             rule_versions=rule_versions,
             execution_failures=deepcopy(assessment_result.failures),
             report_version=self._report_version,
+            findings_by_framework=findings_by_framework,
         )
+
+    def _build_framework_findings(
+        self,
+        findings: list[Finding],
+    ) -> list[FrameworkFindings]:
+        """Group copied findings in stable framework and execution order."""
+
+        grouped = {framework: [] for framework in self._FRAMEWORK_ORDER}
+        for finding in findings:
+            grouped[finding.framework].append(deepcopy(finding))
+        return [
+            FrameworkFindings(
+                framework=framework,
+                findings=grouped[framework],
+            )
+            for framework in self._FRAMEWORK_ORDER
+            if grouped[framework]
+        ]
 
     def _validate_traceability(
         self,
