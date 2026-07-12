@@ -11,6 +11,10 @@ from pathlib import Path
 import re
 from typing import Any
 
+from src.assessment.evidence.catalog import (
+    LegalSourceCatalog,
+    load_legal_source_catalog,
+)
 from src.assessment.evidence.models import AuthorityLevel, Evidence
 
 
@@ -76,15 +80,36 @@ class VectorStoreJSONEvidenceRetriever(LegalEvidenceRetriever):
         source_aliases: Mapping[str, Iterable[str]] | None = None,
         document_versions: Mapping[str, str | None] | None = None,
         authority_levels: Mapping[str, AuthorityLevel] | None = None,
+        source_catalog: LegalSourceCatalog | None = None,
     ) -> None:
         self._store_path = Path(store_path)
-        self._source_aliases = self._build_aliases(source_aliases)
+        self._source_catalog = source_catalog or load_legal_source_catalog()
+        if not isinstance(self._source_catalog, LegalSourceCatalog):
+            raise TypeError("source_catalog must be a LegalSourceCatalog")
+        catalog_aliases = {
+            source.instrument_id: source.source_aliases
+            for source in self._source_catalog.all()
+        }
+        catalog_versions = {
+            source.instrument_id: source.version
+            for source in self._source_catalog.all()
+        }
+        catalog_authorities = {
+            source.instrument_id: source.authority_level
+            for source in self._source_catalog.all()
+        }
+        self._source_aliases = self._build_aliases(
+            catalog_aliases,
+            source_aliases,
+        )
         self._document_versions = self._build_values(
             self.DEFAULT_DOCUMENT_VERSIONS,
+            catalog_versions,
             document_versions,
         )
         self._authority_levels = self._build_values(
             self.DEFAULT_AUTHORITY_LEVELS,
+            catalog_authorities,
             authority_levels,
         )
         if any(
@@ -108,7 +133,11 @@ class VectorStoreJSONEvidenceRetriever(LegalEvidenceRetriever):
         source_records = [
             record
             for record in self._records
-            if self._normalize(record.metadata.get("source")) in allowed_sources
+            if self._record_matches_source(
+                record,
+                source_key=self._normalize(legal_source),
+                allowed_sources=allowed_sources,
+            )
         ]
         matching_records = self._filter_by_citation(source_records, citation)
 
@@ -235,12 +264,26 @@ class VectorStoreJSONEvidenceRetriever(LegalEvidenceRetriever):
         source_key = self._normalize(legal_source)
         return self._source_aliases.get(source_key, frozenset((source_key,)))
 
+    def _record_matches_source(
+        self,
+        record: _VectorStoreRecord,
+        *,
+        source_key: str,
+        allowed_sources: frozenset[str],
+    ) -> bool:
+        instrument_id = self._normalize(record.metadata.get("instrument_id"))
+        if instrument_id:
+            return instrument_id == source_key
+        return self._normalize(record.metadata.get("source")) in allowed_sources
+
     @classmethod
     def _build_aliases(
         cls,
+        catalog_aliases: Mapping[str, Iterable[str]],
         custom_aliases: Mapping[str, Iterable[str]] | None,
     ) -> dict[str, frozenset[str]]:
         combined: dict[str, Iterable[str]] = dict(cls.DEFAULT_SOURCE_ALIASES)
+        combined.update(catalog_aliases)
         if custom_aliases is not None:
             combined.update(custom_aliases)
 
@@ -258,9 +301,11 @@ class VectorStoreJSONEvidenceRetriever(LegalEvidenceRetriever):
     def _build_values(
         cls,
         defaults: Mapping[str, Any],
+        catalog_values: Mapping[str, Any],
         custom_values: Mapping[str, Any] | None,
     ) -> dict[str, Any]:
         combined = dict(defaults)
+        combined.update(catalog_values)
         if custom_values is not None:
             combined.update(custom_values)
         return {cls._normalize(key): value for key, value in combined.items()}
@@ -286,4 +331,3 @@ class VectorStoreJSONEvidenceRetriever(LegalEvidenceRetriever):
         if value is None:
             return ""
         return " ".join(str(value).strip().casefold().split())
-

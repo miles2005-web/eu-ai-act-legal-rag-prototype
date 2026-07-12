@@ -1,5 +1,11 @@
 """Evidence domain models for structured legal assessments."""
 
+from src.assessment.evidence.catalog import (
+    LegalSource,
+    LegalSourceCatalog,
+    LegalSourceCatalogError,
+    load_legal_source_catalog,
+)
 from src.assessment.evidence.models import (
     AuthorityLevel,
     Evidence,
@@ -26,6 +32,10 @@ __all__ = [
     "FindingEvidenceBinding",
     "InMemoryEvidenceService",
     "LegalEvidenceRetriever",
+    "LegalSource",
+    "LegalSourceCatalog",
+    "LegalSourceCatalogError",
     "VectorStoreFormatError",
     "VectorStoreJSONEvidenceRetriever",
+    "load_legal_source_catalog",
 ]
