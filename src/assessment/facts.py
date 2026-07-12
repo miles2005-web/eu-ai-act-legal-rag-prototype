@@ -173,6 +173,15 @@ class HighRiskFacts(SerializableModel):
 
 
 @dataclass(slots=True)
+class DataProtectionFacts(SerializableModel):
+    """Facts reserved for cross-regulation data-protection assessments."""
+
+    personal_data_processed: TriState = TriState.UNKNOWN
+    automated_individual_decision: TriState = TriState.UNKNOWN
+    special_category_data_processed: TriState = TriState.UNKNOWN
+
+
+@dataclass(slots=True)
 class FactMetadata(SerializableModel):
     source: FactSource = FactSource.UNKNOWN
     question_id: str | None = None
@@ -192,5 +201,7 @@ class AssessmentFacts(SerializableModel):
     use_context: UseContextFacts = field(default_factory=UseContextFacts)
     practices: PracticesFacts = field(default_factory=PracticesFacts)
     high_risk: HighRiskFacts = field(default_factory=HighRiskFacts)
+    data_protection: DataProtectionFacts = field(
+        default_factory=DataProtectionFacts
+    )
     fact_metadata: dict[str, FactMetadata] = field(default_factory=dict)
-
