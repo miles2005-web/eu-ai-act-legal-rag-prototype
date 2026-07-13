@@ -1,22 +1,35 @@
-"""Dependency wiring for the reusable EU AI Act assessment workflow."""
+"""Dependency wiring for the reusable multi-framework assessment workflow."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Iterable
 from pathlib import Path
 
 from src.assessment.case import AssessmentCaseService
 from src.assessment.engine import AssessmentEngine
 from src.assessment.evidence import (
     InMemoryEvidenceService,
-    VectorStoreJSONEvidenceRetriever,
+    LegalEvidenceRetriever,
+    MultiCorpusLegalEvidenceRetriever,
 )
 from src.assessment.report import ReportBuilder
-from src.assessment.rules import AIActHighRiskEmploymentRule, RuleRegistry
+from src.assessment.rules import (
+    AIActHighRiskEmploymentRule,
+    EUDataActRelevanceRule,
+    GDPRArticle22RelevanceRule,
+    RuleRegistry,
+)
 from src.assessment.workflow import AssessmentWorkflowService
 
 
 DEFAULT_VECTOR_STORE_PATH = Path(__file__).resolve().parents[3] / "vector_store.json"
+DEFAULT_DATA_ACT_CANDIDATE_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "corpus_builds"
+    / "EU_DATA_ACT"
+    / "data_act_candidate.json"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,7 +40,7 @@ class AssessmentWorkflowBundle:
     case_service: AssessmentCaseService
     engine: AssessmentEngine
     rule_registry: RuleRegistry
-    evidence_retriever: VectorStoreJSONEvidenceRetriever
+    evidence_retriever: LegalEvidenceRetriever
     evidence_service: InMemoryEvidenceService
     report_builder: ReportBuilder
 
@@ -35,6 +48,7 @@ class AssessmentWorkflowBundle:
 def create_assessment_workflow(
     *,
     vector_store_path: str | Path = DEFAULT_VECTOR_STORE_PATH,
+    candidate_store_paths: Iterable[str | Path] | None = None,
     evidence_limit: int = 5,
 ) -> AssessmentWorkflowBundle:
     """Create the shared demonstration assessment configuration.
@@ -50,9 +64,30 @@ def create_assessment_workflow(
         raise ValueError("evidence_limit must be greater than zero")
 
     case_service = AssessmentCaseService()
-    rule_registry = RuleRegistry([AIActHighRiskEmploymentRule()])
+    rule_registry = RuleRegistry(
+        [
+            AIActHighRiskEmploymentRule(),
+            GDPRArticle22RelevanceRule(),
+            EUDataActRelevanceRule(),
+        ]
+    )
     engine = AssessmentEngine(rule_registry)
-    evidence_retriever = VectorStoreJSONEvidenceRetriever(vector_store_path)
+    if candidate_store_paths is None:
+        candidate_paths = (
+            (DEFAULT_DATA_ACT_CANDIDATE_PATH,)
+            if DEFAULT_DATA_ACT_CANDIDATE_PATH.is_file()
+            else ()
+        )
+    else:
+        if isinstance(candidate_store_paths, (str, bytes, Path)):
+            raise TypeError(
+                "candidate_store_paths must be an iterable of paths"
+            )
+        candidate_paths = tuple(candidate_store_paths)
+    evidence_retriever = MultiCorpusLegalEvidenceRetriever.from_store_paths(
+        vector_store_path,
+        candidate_paths,
+    )
 
     evidence_by_id = {}
     for rule in rule_registry:

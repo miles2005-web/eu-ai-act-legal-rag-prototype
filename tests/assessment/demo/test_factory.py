@@ -8,8 +8,10 @@ import tempfile
 import unittest
 
 from src.assessment import AssessmentFacts, FindingStatus, TriState
+from src.assessment.evidence import AuthorityLevel, CorpusMetadataV2
 from src.assessment.demo import create_assessment_workflow
 from src.assessment.facts import UseDomain
+from src.assessment.frameworks import RegulatoryFramework
 
 
 class AssessmentWorkflowFactoryTests(unittest.TestCase):
@@ -37,6 +39,15 @@ class AssessmentWorkflowFactoryTests(unittest.TestCase):
                                 "annex_ref": "III",
                             },
                         },
+                        {
+                            "id": "gdpr-article-22",
+                            "document": "GDPR Article 22 evidence.",
+                            "metadata": {
+                                "source": "GDPR2016:679.txt",
+                                "canonical_citation": "Article 22(1)",
+                                "article_number": "22",
+                            },
+                        },
                     ]
                 ),
                 encoding="utf-8",
@@ -47,6 +58,8 @@ class AssessmentWorkflowFactoryTests(unittest.TestCase):
             facts.use_context.domain = UseDomain.EMPLOYMENT
             facts.use_context.task = "Recruitment system ranking candidates"
             facts.use_context.materially_influences_decision = TriState.YES
+            facts.data_protection.personal_data_processed = TriState.YES
+            facts.data_protection.automated_individual_decision = TriState.YES
             assessment_case = bundle.case_service.create_case(
                 "Recruitment case",
                 facts=facts,
@@ -57,19 +70,122 @@ class AssessmentWorkflowFactoryTests(unittest.TestCase):
 
         self.assertEqual(
             bundle.rule_registry.ids(),
-            ("AI_ACT_HIGH_RISK_EMPLOYMENT",),
+            (
+                "AI_ACT_HIGH_RISK_EMPLOYMENT",
+                "GDPR_ARTICLE22_RELEVANCE",
+                "EU_DATA_ACT_RELEVANCE",
+            ),
         )
-        self.assertEqual(len(report.findings), 1)
+        self.assertEqual(len(report.findings), 2)
         self.assertEqual(
             report.findings[0].status,
             FindingStatus.POTENTIALLY_APPLIES,
         )
-        self.assertEqual(len(report.evidence), 2)
-        self.assertEqual(len(report.evidence_bindings), 1)
+        self.assertEqual(
+            [finding.rule_id for finding in report.findings],
+            [
+                "AI_ACT_HIGH_RISK_EMPLOYMENT",
+                "GDPR_ARTICLE22_RELEVANCE",
+            ],
+        )
+        self.assertEqual(len(report.evidence), 3)
+        self.assertEqual(len(report.evidence_bindings), 2)
+        self.assertNotIn(
+            "EU_DATA_ACT",
+            {evidence.legal_source for evidence in report.evidence},
+        )
+        evidence_by_id = {
+            evidence.evidence_id: evidence for evidence in report.evidence
+        }
+        findings_by_id = {
+            finding.finding_id: finding for finding in report.findings
+        }
+        for binding in report.evidence_bindings:
+            expected_sources = {
+                basis.instrument
+                for basis in findings_by_id[binding.finding_id].legal_basis
+            }
+            actual_sources = {
+                evidence_by_id[evidence_id].legal_source
+                for evidence_id in binding.evidence_refs
+            }
+            self.assertTrue(actual_sources.issubset(expected_sources))
+
+    def test_factory_wires_data_act_candidate_corpus(self) -> None:
+        data_act_metadata = CorpusMetadataV2.from_excerpt(
+            instrument_id="EU_DATA_ACT",
+            document_version="Regulation (EU) 2023/2854",
+            canonical_citation="Article 2(5)",
+            authority_level=AuthorityLevel.BINDING_LEGISLATION,
+            excerpt="Connected product definition.",
+        )
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = Path(temporary_directory)
+            legacy_store = directory / "legacy.json"
+            candidate_store = directory / "data-act.json"
+            legacy_store.write_text("[]", encoding="utf-8")
+            candidate_store.write_text(
+                json.dumps(
+                    [
+                        {
+                            "id": data_act_metadata.source_record_id,
+                            "document": "Connected product definition.",
+                            "metadata": {
+                                **data_act_metadata.to_dict(),
+                                "article_number": "2",
+                            },
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            bundle = create_assessment_workflow(
+                vector_store_path=legacy_store,
+                candidate_store_paths=[candidate_store],
+            )
+            facts = AssessmentFacts()
+            facts.data_act.connected_product = TriState.YES
+            facts.data_act.related_service = TriState.YES
+            facts.data_act.data_generated = TriState.YES
+            assessment_case = bundle.case_service.create_case(
+                "Industrial case",
+                facts=facts,
+            )
+            report = bundle.workflow.run(assessment_case.case_id)
+
+        data_act_findings = [
+            finding
+            for finding in report.findings
+            if finding.rule_id == "EU_DATA_ACT_RELEVANCE"
+        ]
+        self.assertEqual(len(data_act_findings), 1)
+        self.assertEqual(
+            data_act_findings[0].framework,
+            RegulatoryFramework.EU_DATA_ACT,
+        )
+        self.assertIn("CONNECTED_PRODUCT", data_act_findings[0].reason_codes)
+        self.assertIn("RELATED_SERVICE", data_act_findings[0].reason_codes)
+        self.assertIn("DATA_GENERATED", data_act_findings[0].reason_codes)
+        binding = next(
+            item
+            for item in report.evidence_bindings
+            if item.finding_id == data_act_findings[0].finding_id
+        )
+        bound_sources = {
+            evidence.legal_source
+            for evidence in report.evidence
+            if evidence.evidence_id in binding.evidence_refs
+        }
+        self.assertEqual(bound_sources, {"EU_DATA_ACT"})
 
     def test_factory_rejects_non_positive_evidence_limit(self) -> None:
         with self.assertRaises(ValueError):
             create_assessment_workflow(evidence_limit=0)
+
+    def test_factory_rejects_single_candidate_path_string(self) -> None:
+        with self.assertRaises(TypeError):
+            create_assessment_workflow(candidate_store_paths="candidate.json")
 
 
 if __name__ == "__main__":

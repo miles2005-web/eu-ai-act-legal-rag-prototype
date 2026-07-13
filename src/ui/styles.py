@@ -170,6 +170,25 @@ p, label, [data-testid="stCaptionContainer"] {
     color: var(--app-text-primary) !important;
 }
 
+[data-testid="stSidebar"] [data-testid="stRadio"] {
+    margin: -0.35rem 0 0.75rem;
+}
+
+[data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] {
+    gap: 0.7rem;
+}
+
+[data-testid="stSidebar"] [data-testid="stExpander"] details {
+    border: 0 !important;
+    border-bottom: 1px solid var(--app-border) !important;
+    border-radius: 0;
+}
+
+[data-testid="stSidebar"] [data-testid="stExpander"] summary {
+    padding-left: 0;
+    padding-right: 0;
+}
+
 .ui-section-header {
     margin: 2.8rem 0 1.05rem;
 }

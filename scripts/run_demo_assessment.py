@@ -112,6 +112,11 @@ def build_assessment_facts(data: dict[str, Any]) -> AssessmentFacts:
     )
     facts.high_risk.annex_iii_use_case = high_risk_data["annex_iii_use_case"]
 
+    for section_name in ("data_protection", "data_act"):
+        section_data = data.get(section_name)
+        if section_data is not None:
+            _assign_tri_state_values(getattr(facts, section_name), section_data)
+
     facts.fact_metadata = {
         fact_path: FactMetadata(
             source=FactSource(metadata["source"]),

@@ -217,6 +217,51 @@ class MultiCorpusEvidenceRetrieverTests(unittest.TestCase):
             ["EU_DATA_ACT", "EU_AI_ACT", "GDPR"],
         )
 
+    def test_citations_never_resolve_from_another_instrument(self) -> None:
+        ai_act = _v2_record(
+            instrument_id="EU_AI_ACT",
+            version="Regulation (EU) 2024/1689",
+            citation="Article 6",
+            excerpt="AI Act Article 6.",
+            article_number="6",
+        )
+        data_act = _v2_record(
+            instrument_id="EU_DATA_ACT",
+            version="Regulation (EU) 2023/2854",
+            citation="Article 2(5)",
+            excerpt="Data Act Article 2 definition.",
+            article_number="2",
+        )
+        gdpr = _v2_record(
+            instrument_id="GDPR",
+            version="Regulation (EU) 2016/679",
+            citation="Article 22(1)",
+            excerpt="GDPR Article 22.",
+            article_number="22",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            existing = Path(directory) / "existing.json"
+            candidate = Path(directory) / "data-act-candidate.json"
+            self._write(existing, [ai_act, gdpr])
+            self._write(candidate, [data_act])
+            retriever = MultiCorpusLegalEvidenceRetriever.from_store_paths(
+                existing,
+                [candidate],
+            )
+
+            self.assertEqual(
+                retriever.retrieve("EU_AI_ACT", "Article 2(5)"),
+                [],
+            )
+            self.assertEqual(
+                retriever.retrieve("EU_DATA_ACT", "Article 6"),
+                [],
+            )
+            self.assertEqual(
+                retriever.retrieve("GDPR", "Article 6"),
+                [],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

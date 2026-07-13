@@ -13,14 +13,9 @@ from src.assessment.evidence import Evidence
 from src.assessment.findings import FindingStatus
 from src.assessment.frameworks import RegulatoryFramework
 from src.assessment.models import TriState
+from src.ui.i18n import DEFAULT_LANGUAGE, t
 
 
-_FRAMEWORK_LABELS = {
-    RegulatoryFramework.EU_AI_ACT: "EU AI Act",
-    RegulatoryFramework.GDPR: "GDPR",
-    RegulatoryFramework.EU_DATA_ACT: "EU Data Act",
-    RegulatoryFramework.UNKNOWN: "Other framework",
-}
 _STATUS_TONES = {
     FindingStatus.APPLIES: "danger",
     FindingStatus.DOES_NOT_APPLY: "neutral",
@@ -28,48 +23,28 @@ _STATUS_TONES = {
     FindingStatus.UNDETERMINED: "warning",
     FindingStatus.NOT_ASSESSED: "neutral",
 }
-_FACT_LABELS = {
-    "use_context.domain": "Employment context",
-    "use_context.task": "AI system function",
-    "use_context.materially_influences_decision": (
-        "Material influence on decisions"
-    ),
-    "data_protection.personal_data_processed": "Personal data processing",
-    "data_protection.automated_individual_decision": (
-        "Automated individual decision"
-    ),
-    "data_protection.special_category_data_processed": (
-        "Special-category data processing"
-    ),
-    "data_act.connected_product": "Connected product",
-    "data_act.related_service": "Related service",
-    "data_act.data_generated": "Product or service data generated",
-    "data_act.data_holder_identified": "Data holder identified",
-    "data_act.user_or_third_party_access_request": (
-        "User or third-party data access request"
-    ),
-}
-_RULE_LABELS = {
-    "AI_ACT_HIGH_RISK_EMPLOYMENT": "Employment high-risk screening",
-    "GDPR_ARTICLE22_RELEVANCE": "GDPR automated-decision relevance screening",
-    "EU_DATA_ACT_RELEVANCE": "EU Data Act relevance screening",
-}
 
 
-def framework_label(framework: RegulatoryFramework) -> str:
+def framework_label(
+    framework: RegulatoryFramework,
+    language: str = DEFAULT_LANGUAGE,
+) -> str:
     """Return a stable human-readable regulatory framework label."""
 
     if not isinstance(framework, RegulatoryFramework):
         raise TypeError("framework must be a RegulatoryFramework")
-    return _FRAMEWORK_LABELS[framework]
+    return t(f"framework.{framework.value}", language)
 
 
-def status_label(status: FindingStatus) -> str:
+def status_label(
+    status: FindingStatus,
+    language: str = DEFAULT_LANGUAGE,
+) -> str:
     """Return a restrained display label without changing legal meaning."""
 
     if not isinstance(status, FindingStatus):
         raise TypeError("status must be a FindingStatus")
-    return status.value.replace("_", " ").title()
+    return t(f"status.{status.value}", language)
 
 
 def status_tone(status: FindingStatus) -> str:
@@ -80,29 +55,36 @@ def status_tone(status: FindingStatus) -> str:
     return _STATUS_TONES[status]
 
 
-def fact_label(fact_path: str) -> str:
+def fact_label(fact_path: str, language: str = DEFAULT_LANGUAGE) -> str:
     """Return a compliance-user label for a raw AssessmentFacts path."""
 
     if not isinstance(fact_path, str) or not fact_path.strip():
         raise ValueError("fact_path must be a non-empty string")
     normalized = fact_path.strip()
-    if normalized in _FACT_LABELS:
-        return _FACT_LABELS[normalized]
+    translation_key = f"fact.{normalized}"
+    translated = t(translation_key, language)
+    if translated != translation_key:
+        return translated
     return normalized.rsplit(".", maxsplit=1)[-1].replace("_", " ").title()
 
 
-def rule_label(rule_id: str | None) -> str:
+def rule_label(rule_id: str | None, language: str = DEFAULT_LANGUAGE) -> str:
     """Return a readable title for a versioned rule identifier."""
 
     if not rule_id:
-        return "Assessment rule"
-    return _RULE_LABELS.get(
-        rule_id,
-        rule_id.replace("_", " ").title(),
-    )
+        return t("navigation.assessment", language)
+    translation_key = f"rule.{rule_id}"
+    translated = t(translation_key, language)
+    return translated if translated != translation_key else rule_id.replace(
+        "_", " "
+    ).title()
 
 
-def fact_value(facts: object, fact_path: str) -> str:
+def fact_value(
+    facts: object,
+    fact_path: str,
+    language: str = DEFAULT_LANGUAGE,
+) -> str:
     """Read one fact path for presentation without mutating the fact model."""
 
     value: Any = facts
@@ -110,30 +92,36 @@ def fact_value(facts: object, fact_path: str) -> str:
         for segment in fact_path.split("."):
             value = getattr(value, segment)
     except AttributeError:
-        return "Not recorded"
-    return _display_value(value)
+        return t("value.not_recorded", language)
+    return _display_value(value, language)
 
 
-def reasoning_state(result: str | None) -> tuple[str, str]:
+def reasoning_state(
+    result: str | None,
+    language: str = DEFAULT_LANGUAGE,
+) -> tuple[str, str]:
     """Map a raw rule trace result to a visible state label and CSS tone."""
 
     if not result or "unknown" in result.casefold():
-        return "Unknown", "unknown"
+        return t("state.unknown", language), "unknown"
     normalized = result.casefold()
     if (
         normalized.startswith(("no_", "not_"))
         or "_not_" in normalized
         or "not_matched" in normalized
     ):
-        return "Not matched", "not-matched"
-    return "Matched", "matched"
+        return t("state.not_matched", language), "not-matched"
+    return t("state.matched", language), "matched"
 
 
-def readable_result(result: str | None) -> str:
+def readable_result(
+    result: str | None,
+    language: str = DEFAULT_LANGUAGE,
+) -> str:
     """Humanize a raw rule result while preserving it elsewhere for audit."""
 
     if not result:
-        return "No recorded result"
+        return t("value.not_recorded", language)
     return result.replace("_", " ").replace(",", ", ").capitalize()
 
 
@@ -150,23 +138,27 @@ def group_evidence_by_citation(
     return list(grouped.items())
 
 
-def _display_value(value: Any) -> str:
+def _display_value(value: Any, language: str) -> str:
     if value is None:
-        return "Not recorded"
+        return t("value.not_recorded", language)
     if isinstance(value, TriState):
         return {
-            TriState.YES: "Yes",
-            TriState.NO: "No",
-            TriState.UNKNOWN: "Unknown",
+            TriState.YES: t("value.yes", language),
+            TriState.NO: t("value.no", language),
+            TriState.UNKNOWN: t("value.unknown", language),
         }[value]
     if isinstance(value, Enum):
+        domain_key = f"domain.{value.value}"
+        localized_domain = t(domain_key, language)
+        if localized_domain != domain_key:
+            return localized_domain
         return value.value.replace("_", " ").title()
     if isinstance(value, list):
         if not value:
-            return "None recorded"
-        return ", ".join(_display_value(item) for item in value)
+            return t("value.none_recorded", language)
+        return ", ".join(_display_value(item, language) for item in value)
     if isinstance(value, str):
-        return value or "Not recorded"
+        return value or t("value.not_recorded", language)
     return str(value)
 
 
@@ -174,16 +166,20 @@ def render_framework_badge(
     framework: RegulatoryFramework,
     *,
     tone: str = "accent",
+    language: str = DEFAULT_LANGUAGE,
 ) -> None:
     """Render a compact framework badge."""
 
-    _render_badge(framework_label(framework), tone=tone)
+    _render_badge(framework_label(framework, language), tone=tone)
 
 
-def render_status_badge(status: FindingStatus) -> None:
+def render_status_badge(
+    status: FindingStatus,
+    language: str = DEFAULT_LANGUAGE,
+) -> None:
     """Render one finding status badge."""
 
-    _render_badge(status_label(status), tone=status_tone(status))
+    _render_badge(status_label(status, language), tone=status_tone(status))
 
 
 def render_section_header(
