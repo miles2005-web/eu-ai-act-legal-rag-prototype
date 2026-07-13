@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from html import escape
 from pathlib import Path
 
 import streamlit as st
@@ -18,11 +19,18 @@ from src.assessment.models import TriState
 from src.assessment.report import AssessmentReport
 from src.ui import apply_enterprise_styles
 from src.ui.components import (
-    render_assessment_summary_card,
-    render_evidence_trace_card,
-    render_finding_card,
-    render_framework_card,
     render_section_header,
+)
+from src.ui.components.common import (
+    fact_label,
+    fact_value,
+    framework_label,
+    render_framework_badge,
+    render_status_badge,
+    group_evidence_by_citation,
+    readable_result,
+    reasoning_state,
+    rule_label,
 )
 
 
@@ -136,7 +144,7 @@ def render_sidebar(
             """,
             unsafe_allow_html=True,
         )
-        st.caption("PRODUCT NAVIGATION")
+        st.markdown('<div class="ui-nav-label">Workspace</div>', unsafe_allow_html=True)
         current_view = st.session_state.get("assessment_view", VIEW_LANDING)
         if st.button(
             "Assessment",
@@ -152,22 +160,40 @@ def render_sidebar(
         ):
             navigate(VIEW_LANDING)
         if st.button(
-            "Regulatory frameworks",
+            "Findings",
             use_container_width=True,
             disabled=report is None,
             type="primary" if current_view == VIEW_RESULTS else "secondary",
         ):
             navigate(VIEW_RESULTS)
         if st.button(
-            "Evidence engine",
+            "Evidence trace",
             use_container_width=True,
             disabled=report is None,
             type="primary" if current_view == VIEW_EVIDENCE else "secondary",
         ):
             navigate(VIEW_EVIDENCE)
 
-        st.divider()
-        st.markdown("#### Assessment progress")
+        st.markdown('<div class="ui-nav-label ui-nav-label--reference">Reference</div>', unsafe_allow_html=True)
+        with st.expander("Regulatory frameworks", expanded=False):
+            st.caption("EU AI Act · GDPR · EU Data Act")
+            st.write("Deterministic screening with versioned legal authority.")
+        with st.expander("Technical details", expanded=False):
+            if case_id is None:
+                st.caption("Create or open a case to inspect technical details.")
+            else:
+                assessment_case = bundle.case_service.get_case(case_id)
+                st.caption("Case ID")
+                st.code(assessment_case.case_id, language=None)
+                st.caption(
+                    f"Facts schema {assessment_case.current_facts.schema_version}"
+                )
+                if report is not None:
+                    st.caption(
+                        f"Report {report.report_version} · Engine {report.engine_version}"
+                    )
+
+        st.markdown('<div class="ui-progress-heading">Assessment progress</div>', unsafe_allow_html=True)
         case_complete = case_id is not None
         facts_complete = False
         if case_id is not None:
@@ -187,13 +213,16 @@ def render_sidebar(
             ("Assessment completed", report is not None),
         )
         for label, complete in statuses:
-            st.write(f"{'✅' if complete else '○'} {label}")
+            state = "Complete" if complete else "Pending"
+            icon = "✓" if complete else "○"
+            st.markdown(
+                '<div class="ui-progress-row">'
+                f'<span aria-hidden="true">{icon}</span>'
+                f'<span>{label}</span><span class="ui-progress-state">{state}</span>'
+                "</div>",
+                unsafe_allow_html=True,
+            )
         st.progress(sum(complete for _, complete in statuses) / len(statuses))
-
-        st.divider()
-        st.caption("REGULATORY COVERAGE")
-        st.write("EU AI Act · GDPR · EU Data Act")
-        st.caption("Structured rules and versioned legal evidence")
 
         if case_id is not None and st.button("Start a new assessment"):
             st.session_state.assessment_workflow_bundle = (
@@ -260,16 +289,16 @@ def render_case_creation(bundle: AssessmentWorkflowBundle) -> None:
         strict=True,
     ):
         with column:
-            with st.container(border=True):
-                st.markdown(
-                    '<div class="ui-capability-number">'
-                    f"{number}</div>"
-                    '<div class="ui-capability-title">'
-                    f"{heading}</div>"
-                    '<p class="ui-capability-copy">'
-                    f"{description}</p>",
-                    unsafe_allow_html=True,
-                )
+            st.markdown(
+                '<div class="ui-capability-block">'
+                '<div class="ui-capability-number">'
+                f"{number}</div>"
+                '<div class="ui-capability-title">'
+                f"{heading}</div>"
+                '<p class="ui-capability-copy">'
+                f"{description}</p></div>",
+                unsafe_allow_html=True,
+            )
 
     active_case_id = st.session_state.get("assessment_case_id")
     if active_case_id is not None:
@@ -383,36 +412,44 @@ def render_case_context(bundle: AssessmentWorkflowBundle, case_id: str) -> None:
 
     assessment_case = bundle.case_service.get_case(case_id)
     facts = assessment_case.current_facts
-    title_column, action_column = st.columns([4, 1])
-    with title_column:
-        st.caption("ACTIVE ASSESSMENT CASE")
-        st.markdown(f"# {assessment_case.name}")
-        if assessment_case.description:
-            st.write(assessment_case.description)
-    with action_column:
-        st.metric("Schema version", assessment_case.schema_version)
+    st.caption("ACTIVE ASSESSMENT CASE")
+    st.markdown(f"# {assessment_case.name}")
+    if assessment_case.description:
+        st.markdown(
+            f'<p class="ui-case-description">{escape(assessment_case.description)}</p>',
+            unsafe_allow_html=True,
+        )
 
-    profile_column, scope_column, status_column = st.columns(3)
-    with profile_column:
-        with st.container(border=True):
-            st.caption("SYSTEM PROFILE")
-            st.markdown(f"**{facts.system.name or 'Unnamed AI system'}**")
-            st.write(facts.system.intended_purpose or "Purpose not yet provided.")
-    with scope_column:
-        with st.container(border=True):
-            st.caption("USE CONTEXT")
-            st.markdown(f"**{DOMAIN_LABELS[facts.use_context.domain]}**")
-            st.write(facts.use_context.task or "Task not yet provided.")
-    with status_column:
-        with st.container(border=True):
-            st.caption("ASSESSMENT STATUS")
-            st.markdown(
-                "**Report available**"
-                if st.session_state.get("assessment_report") is not None
-                else "**Facts in progress**"
-            )
-            demo = st.session_state.get("demo_scenario")
-            st.write(f"Scenario: {demo.title()}" if demo else "Custom case")
+    report_ready = st.session_state.get("assessment_report") is not None
+    status = "Report available" if report_ready else "Facts in progress"
+    demo = st.session_state.get("demo_scenario")
+    scenario = f"{demo.title()} demo" if demo else "Custom case"
+    st.markdown(
+        '<section class="ui-system-summary" aria-label="System summary">'
+        '<div class="ui-system-summary__item">'
+        '<span class="ui-system-summary__label">System</span>'
+        f'<strong>{escape(facts.system.name or "Unnamed AI system")}</strong>'
+        f'<span>{escape(facts.system.intended_purpose or "Purpose not yet provided.")}</span>'
+        "</div>"
+        '<div class="ui-system-summary__item">'
+        '<span class="ui-system-summary__label">Use context</span>'
+        f'<strong>{escape(DOMAIN_LABELS[facts.use_context.domain])}</strong>'
+        f'<span>{escape(facts.use_context.task or "Task not yet provided.")}</span>'
+        "</div>"
+        '<div class="ui-system-summary__item">'
+        '<span class="ui-system-summary__label">Assessment</span>'
+        f"<strong>{status}</strong><span>{scenario}</span>"
+        "</div></section>",
+        unsafe_allow_html=True,
+    )
+    with st.expander("Technical details", expanded=False):
+        detail_columns = st.columns(3)
+        detail_columns[0].caption("Case ID")
+        detail_columns[0].code(assessment_case.case_id, language=None)
+        detail_columns[1].caption("Case schema")
+        detail_columns[1].code(assessment_case.schema_version, language=None)
+        detail_columns[2].caption("Facts schema")
+        detail_columns[2].code(facts.schema_version, language=None)
 
 
 def render_fact_collection(bundle: AssessmentWorkflowBundle, case_id: str) -> None:
@@ -495,7 +532,203 @@ def render_assessment_action(
         st.rerun()
 
 
-def render_report(report: AssessmentReport) -> None:
+def evidence_for_finding(report: AssessmentReport, finding_id: str) -> list:
+    """Return bound Evidence in report binding order for presentation."""
+
+    binding = next(
+        (
+            item
+            for item in report.evidence_bindings
+            if item.finding_id == finding_id
+        ),
+        None,
+    )
+    evidence_by_id = {item.evidence_id: item for item in report.evidence}
+    return [
+        evidence_by_id[evidence_id]
+        for evidence_id in (binding.evidence_refs if binding else [])
+        if evidence_id in evidence_by_id
+    ]
+
+
+def render_decision_path(finding, facts) -> None:
+    """Render a finding trace as human-readable decision stages."""
+
+    st.markdown("### Decision path")
+    if not finding.trace:
+        st.caption("No reasoning stages were recorded for this finding.")
+        return
+    for index, entry in enumerate(finding.trace, start=1):
+        label = fact_label(entry.fact_refs[0]) if entry.fact_refs else f"Condition {index}"
+        state_label, state_tone = reasoning_state(entry.result)
+        value = (
+            fact_value(facts, entry.fact_refs[0])
+            if entry.fact_refs
+            else readable_result(entry.result)
+        )
+        st.markdown(
+            '<div class="ui-decision-step">'
+            '<div class="ui-decision-step__index">'
+            f"{index:02d}</div>"
+            '<div class="ui-decision-step__content">'
+            '<div class="ui-decision-step__heading">'
+            f"<strong>{escape(label)}</strong>"
+            f'<span class="ui-state ui-state--{state_tone}">{state_label}</span>'
+            "</div>"
+            f'<div class="ui-decision-step__value">{escape(value)}</div>'
+            f'<p>{escape(entry.description)}</p>'
+            "</div></div>",
+            unsafe_allow_html=True,
+        )
+
+
+def render_result_finding_card(
+    finding,
+    bound_evidence: list,
+    facts,
+    schema_version: str,
+) -> None:
+    """Present one finding in user-first compliance review order."""
+
+    with st.container():
+        status_column, framework_column, count_column = st.columns([2, 2, 3])
+        with status_column:
+            render_status_badge(finding.status)
+        with framework_column:
+            render_framework_badge(finding.framework, tone="neutral")
+        count_column.markdown(
+            '<div class="ui-finding-evidence-count">'
+            f"{len(bound_evidence)} supporting record(s)</div>",
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(
+            '<div class="ui-finding-kicker">Preliminary conclusion</div>'
+            f'<h2 class="ui-finding-title ui-finding-title--hero">'
+            f"{escape(finding.title)}</h2>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f'<p class="ui-finding-summary">{escape(finding.summary)}</p>',
+            unsafe_allow_html=True,
+        )
+
+        if finding.requires_legal_review:
+            st.warning(
+                "Further legal review is required before treating this "
+                "preliminary result as a final classification."
+            )
+
+        render_decision_path(finding, facts)
+
+        st.markdown("### Legal authority")
+        if finding.legal_basis:
+            for basis in finding.legal_basis:
+                st.markdown(
+                    '<div class="ui-legal-basis-row">'
+                    f'<span class="ui-legal-basis-citation">{escape(basis.citation)}</span>'
+                    f'<span class="ui-legal-basis-instrument">{escape(basis.instrument)}</span>'
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.caption("No legal basis recorded for this finding.")
+
+        st.markdown("### Evidence summary")
+        if not bound_evidence:
+            st.info("No supporting evidence is currently bound to this finding.")
+        else:
+            citation_groups = group_evidence_by_citation(bound_evidence)
+            st.markdown(
+                '<div class="ui-evidence-overview">'
+                f'<strong>{len(bound_evidence)} supporting records</strong>'
+                f'<span>{len(citation_groups)} citations represented</span>'
+                "</div>",
+                unsafe_allow_html=True,
+            )
+            for citation, records in citation_groups:
+                st.markdown(
+                    '<div class="ui-evidence-citation-summary">'
+                    f"<strong>{escape(citation)}</strong>"
+                    f"<span>{len(records)} supporting excerpt(s)</span>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+            if st.button(
+                "Inspect this finding in Evidence trace",
+                key=f"open-evidence-{finding.finding_id}",
+            ):
+                st.session_state.selected_finding_id = finding.finding_id
+                navigate(VIEW_EVIDENCE)
+
+        with st.expander("Technical details", expanded=False):
+            metadata_columns = st.columns(3)
+            metadata_columns[0].caption("Rule ID")
+            metadata_columns[0].code(finding.rule_id or "Not recorded")
+            metadata_columns[1].caption("Rule version")
+            metadata_columns[1].code(finding.rule_version or "Not recorded")
+            metadata_columns[2].caption("Issue code")
+            metadata_columns[2].code(finding.issue_code)
+            st.caption("Facts schema")
+            st.code(schema_version, language=None)
+            if finding.fact_refs:
+                st.caption("Raw fact keys")
+                for fact_path in finding.fact_refs:
+                    st.code(fact_path, language=None)
+            if finding.reason_codes:
+                st.caption("Raw reason codes")
+                for reason_code in finding.reason_codes:
+                    st.code(reason_code, language=None)
+    st.divider()
+
+
+def render_trace_stage(
+    number: str,
+    title: str,
+    description: str,
+) -> None:
+    """Render the heading for one stage of the vertical audit trace."""
+
+    st.markdown(
+        '<div class="ui-trace-stage-header">'
+        f'<div class="ui-trace-stage-number">{number}</div>'
+        '<div class="ui-trace-stage-heading">'
+        f'<h2 class="ui-trace-stage-title">{escape(title)}</h2>'
+        f'<div class="ui-trace-stage-description">{escape(description)}</div>'
+        "</div></div>",
+        unsafe_allow_html=True,
+    )
+
+
+def render_trace_connector() -> None:
+    """Render a restrained directional connector between audit stages."""
+
+    st.markdown(
+        '<div class="ui-trace-connector" aria-hidden="true">↓</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_audit_evidence_card(evidence, *, record_number: int) -> None:
+    """Render atomic Evidence as an audit-ready record."""
+
+    label = f"Excerpt {record_number} · {evidence.legal_source}"
+    with st.expander(label, expanded=False):
+        st.markdown(
+            '<div class="ui-evidence-trace-meta">'
+            f'<span>Authority · {escape(evidence.authority_level.value.replace("_", " ").title())}</span>'
+            f'<span>Version · {escape(evidence.document_version or "Not recorded")}</span>'
+            f'<span>Source · {escape(evidence.legal_source)}</span>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown("**Authoritative excerpt**")
+        st.write(evidence.excerpt)
+        st.caption("Stable Evidence ID")
+        st.code(evidence.evidence_id, language=None)
+
+
+def render_report(report: AssessmentReport, facts) -> None:
     """Present structured assessment results without evidence duplication."""
 
     render_section_header(
@@ -506,38 +739,38 @@ def render_report(report: AssessmentReport) -> None:
             "authority."
         ),
     )
-    render_assessment_summary_card(report)
-
-    if report.findings_by_framework:
-        render_section_header("Framework overview")
-        framework_columns = st.columns(
-            min(len(report.findings_by_framework), 3)
-        )
-        for index, group in enumerate(report.findings_by_framework):
-            with framework_columns[index % len(framework_columns)]:
-                render_framework_card(group.framework, group.findings)
+    framework_names = ", ".join(
+        framework_label(framework)
+        for framework in report.assessed_frameworks
+    ) or "No framework recorded"
+    st.markdown(
+        '<div class="ui-report-context">'
+        f'<span>{len(report.findings)} finding(s)</span>'
+        f'<span>{len(report.evidence)} evidence record(s)</span>'
+        f'<span>{len(report.missing_information)} information gap(s)</span>'
+        f'<span>{framework_names}</span>'
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
     render_section_header("Findings")
     if not report.findings:
         st.info("No legal finding was produced from the currently available facts.")
     for finding in report.findings:
-        binding = next(
-            (
-                item
-                for item in report.evidence_bindings
-                if item.finding_id == finding.finding_id
-            ),
-            None,
-        )
-        render_finding_card(
+        render_result_finding_card(
             finding,
-            evidence_count=len(binding.evidence_refs) if binding else 0,
+            evidence_for_finding(report, finding.finding_id),
+            facts,
+            facts.schema_version,
         )
 
     render_section_header("Missing information")
     if report.missing_information:
         for item in report.missing_information:
-            st.write(f"- `{item.fact_path}` ({item.reason.value})")
+            st.write(
+                f"- **{fact_label(item.fact_path)}** — "
+                f"{item.reason.value.replace('_', ' ')}"
+            )
     else:
         st.write("None identified for the rules currently assessed.")
 
@@ -546,20 +779,127 @@ def render_report(report: AssessmentReport) -> None:
         for recommendation in report.recommendations:
             st.write(f"- {recommendation}")
 
-    st.caption(
-        f"Report {report.report_id} · Engine {report.engine_version} · "
-        f"Generated {report.generated_at.isoformat()}"
+    with st.expander("Report technical details", expanded=False):
+        st.caption("Report ID")
+        st.code(report.report_id, language=None)
+        st.caption(
+            f"Report version {report.report_version} · "
+            f"Engine {report.engine_version} · "
+            f"Generated {report.generated_at.isoformat()}"
+        )
+        if report.missing_information:
+            st.caption("Raw missing fact keys")
+            for item in report.missing_information:
+                st.code(item.fact_path, language=None)
+
+def render_compliance_chain(finding, bound_evidence: list, facts) -> None:
+    """Render one finding as a centered, sequential compliance trace."""
+
+    with st.container():
+        header_column, status_column = st.columns([4, 1])
+        header_column.caption("SELECTED FINDING")
+        header_column.markdown(f"## {finding.title}")
+        header_column.write(finding.summary)
+        with status_column:
+            render_status_badge(finding.status)
+
+    render_trace_connector()
+    render_trace_stage(
+        "01",
+        "Facts",
+        "The factual inputs used by the assessment rule.",
     )
+    with st.container():
+        if finding.fact_refs:
+            for fact_path in finding.fact_refs:
+                st.markdown(
+                    '<div class="ui-trace-fact-row">'
+                    '<span class="ui-trace-fact-dot"></span>'
+                    '<span class="ui-trace-fact-content">'
+                    f"<strong>{escape(fact_label(fact_path))}</strong>"
+                    f"<span>{escape(fact_value(facts, fact_path))}</span>"
+                    "</span></div>",
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.caption("No fact references were recorded.")
 
-    if st.button(
-        "Open evidence trace",
-        type="primary",
-        use_container_width=True,
-    ):
-        navigate(VIEW_EVIDENCE)
+    render_trace_connector()
+    render_trace_stage(
+        "02",
+        "Rule evaluation",
+        "The versioned assessment logic and recorded reasoning sequence.",
+    )
+    with st.container():
+        st.markdown(f"### {rule_label(finding.rule_id)}")
+        if finding.trace:
+            render_decision_path(finding, facts)
+        else:
+            st.caption("No reasoning trace was recorded.")
+        with st.expander("Rule technical details", expanded=False):
+            st.caption("Rule ID and version")
+            st.code(
+                f"{finding.rule_id or 'Not recorded'} · "
+                f"{finding.rule_version or 'Not recorded'}",
+                language=None,
+            )
+            if finding.reason_codes:
+                st.caption("Raw reason codes")
+                for reason_code in finding.reason_codes:
+                    st.code(reason_code, language=None)
+
+    render_trace_connector()
+    render_trace_stage(
+        "03",
+        "Legal basis",
+        "The authored legal references supporting the finding.",
+    )
+    with st.container():
+        if finding.legal_basis:
+            for basis in finding.legal_basis:
+                st.markdown(
+                    '<div class="ui-legal-basis-row">'
+                    f'<span class="ui-legal-basis-citation">{escape(basis.citation)}</span>'
+                    f'<span class="ui-legal-basis-instrument">{escape(basis.instrument)}</span>'
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.caption("No legal basis was recorded.")
+
+    render_trace_connector()
+    render_trace_stage(
+        "04",
+        "Source evidence",
+        "Atomic, versioned legal excerpts bound to this finding.",
+    )
+    if not bound_evidence:
+        st.info("No supporting evidence is bound to this finding.")
+    for citation, records in group_evidence_by_citation(bound_evidence):
+        st.markdown(
+            '<section class="ui-evidence-group">'
+            '<div class="ui-evidence-group__heading">'
+            f"<strong>{escape(citation)}</strong>"
+            f"<span>{len(records)} supporting excerpt(s)</span>"
+            "</div></section>",
+            unsafe_allow_html=True,
+        )
+        for record_number, evidence in enumerate(records, start=1):
+            render_audit_evidence_card(
+                evidence,
+                record_number=record_number,
+            )
+
+    with st.expander("Evidence technical details", expanded=False):
+        st.caption("Raw fact keys")
+        for fact_path in finding.fact_refs:
+            st.code(fact_path, language=None)
+        st.caption("All bound stable Evidence IDs")
+        for evidence in bound_evidence:
+            st.code(evidence.evidence_id, language=None)
 
 
-def render_evidence_workspace(report: AssessmentReport) -> None:
+def render_evidence_workspace(report: AssessmentReport, facts) -> None:
     """Render finding-specific evidence relationships and stable identities."""
 
     render_section_header(
@@ -588,48 +928,10 @@ def render_evidence_workspace(report: AssessmentReport) -> None:
     st.session_state.selected_finding_id = selected_id
     finding = finding_by_id[selected_id]
 
-    binding = next(
-        (
-            item
-            for item in report.evidence_bindings
-            if item.finding_id == selected_id
-        ),
-        None,
-    )
-    evidence_by_id = {item.evidence_id: item for item in report.evidence}
-    bound_evidence = [
-        evidence_by_id[evidence_id]
-        for evidence_id in (binding.evidence_refs if binding else [])
-        if evidence_id in evidence_by_id
-    ]
-
-    overview_column, trace_column = st.columns([2, 3])
-    with overview_column:
-        render_finding_card(finding, evidence_count=len(bound_evidence))
-    with trace_column:
-        with st.container(border=True):
-            st.caption("TRACEABILITY CHAIN")
-            st.markdown("#### Fact → Rule → Legal basis → Evidence")
-            st.write("**Facts referenced**")
-            for fact_path in finding.fact_refs:
-                st.code(fact_path, language=None)
-            st.write("**Rule metadata**")
-            st.write(
-                f"`{finding.rule_id or 'Not recorded'}` · "
-                f"Version `{finding.rule_version or 'Not recorded'}`"
-            )
-            st.write("**Authored legal basis**")
-            for basis in finding.legal_basis:
-                st.write(f"- {basis.instrument} · {basis.citation}")
-
-    render_section_header(
-        "Bound evidence",
-        description=f"{len(bound_evidence)} atomic evidence record(s).",
-    )
-    if not bound_evidence:
-        st.info("No supporting evidence is bound to this finding.")
-    for evidence in bound_evidence:
-        render_evidence_trace_card(evidence)
+    bound_evidence = evidence_for_finding(report, selected_id)
+    _, chain_column, _ = st.columns([1, 6, 1])
+    with chain_column:
+        render_compliance_chain(finding, bound_evidence, facts)
 
 
 def main() -> None:
@@ -668,12 +970,13 @@ def main() -> None:
             navigate(VIEW_WORKSPACE)
         return
 
+    facts = bundle.case_service.get_case(case_id).current_facts
     if view == VIEW_RESULTS:
-        render_report(report)
+        render_report(report, facts)
         return
 
     if view == VIEW_EVIDENCE:
-        render_evidence_workspace(report)
+        render_evidence_workspace(report, facts)
         return
 
     st.session_state.assessment_view = VIEW_LANDING
