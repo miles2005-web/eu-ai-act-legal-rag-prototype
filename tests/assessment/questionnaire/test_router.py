@@ -12,6 +12,7 @@ from src.assessment.questionnaire import (
     RULE_QUESTIONNAIRE_DEFINITIONS,
     UNSUPPORTED_PATH_DEFINITIONS,
     QuestionnaireRoute,
+    FactProvenance,
     build_default_questionnaire_router,
     build_question_registry,
     build_rule_questionnaire_registry,
@@ -261,6 +262,30 @@ class QuestionnaireRouterTests(unittest.TestCase):
                 "INTAKE-CONNECTED-PRODUCT",
             ],
         )
+
+    def test_provenance_input_is_accepted_without_changing_route(self) -> None:
+        facts = AssessmentFacts()
+        facts.use_context.domain = UseDomain.EMPLOYMENT
+        facts.use_context.task = "recruitment screening of candidates"
+        provenance = [
+            FactProvenance(
+                fact_path="use_context.task",
+                question_id="INTAKE-USE-TASK",
+                depends_on=("use_context.domain",),
+            )
+        ]
+
+        without_provenance = self.router.route(
+            facts,
+            confirmed_routing_hints=(HINT_RECRUITMENT,),
+        )
+        with_provenance = self.router.route(
+            facts,
+            confirmed_routing_hints=(HINT_RECRUITMENT,),
+            fact_provenance=provenance,
+        )
+
+        self.assertEqual(with_provenance.to_dict(), without_provenance.to_dict())
 
     def test_module_confirmation_precedes_confirmed_module_follow_up(self) -> None:
         facts = AssessmentFacts()

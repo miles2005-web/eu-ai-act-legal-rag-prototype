@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
+from enum import Enum
 from html import escape
 from pathlib import Path
 
@@ -13,10 +15,22 @@ from scripts.run_demo_assessment import (
     load_fixture,
 )
 from src.assessment.demo import AssessmentWorkflowBundle, create_assessment_workflow
-from src.assessment.facts import UseDomain
+from src.assessment.facts import AffectedPerson, UseDomain
 from src.assessment.findings import FindingStatus
 from src.assessment.frameworks import RegulatoryFramework
 from src.assessment.models import TriState
+from src.assessment.questionnaire import (
+    FactProvenance,
+    QuestionnaireRoute,
+    build_default_questionnaire_router,
+    calculate_invalidations,
+)
+from src.assessment.questionnaire.models import AnswerType
+from src.assessment.questionnaire.definitions import (
+    AI_ACT_EMPLOYMENT_RULE_ID,
+    EU_DATA_ACT_RULE_ID,
+    GDPR_ARTICLE22_RULE_ID,
+)
 from src.assessment.report import AssessmentReport
 from src.ui import apply_enterprise_styles
 from src.ui.components import (
@@ -47,6 +61,25 @@ from src.ui.normalization import (
     apply_normalized_input,
     normalize_legal_input,
 )
+from src.ui.questionnaire import (
+    IMPLEMENTED_MODULE_IDS,
+    ROUTING_HINT_IDS,
+    QuestionnaireAnswer,
+    apply_question_answers,
+    clear_fact_paths,
+    current_answer,
+    execution_facts_for_modules,
+    hints_from_normalization,
+    localized_text_key,
+    merge_provenance,
+    module_definition,
+    modules_for_question,
+    question_definition,
+    question_id_for_fact_path,
+    remove_provenance,
+    required_facts_complete,
+    resolve_fact,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -58,12 +91,42 @@ VIEW_WORKSPACE = "workspace"
 VIEW_RESULTS = "results"
 VIEW_EVIDENCE = "evidence"
 CASE_FORM_STATE_KEYS = (
+    "assessment_fact_system_name",
+    "assessment_fact_system_purpose",
     "assessment_fact_domain",
     "assessment_fact_task",
     "assessment_fact_material_influence",
+    "assessment_fact_affected_persons",
+    "assessment_fact_personal_data",
+    "assessment_fact_connected_product",
+    "assessment_fact_related_service",
     "assessment_confirm_ambiguous_task",
     "assessment_input_normalization",
+    "assessment_routing_hints_widget",
+    "assessment_manual_modules_widget",
 )
+QUESTIONNAIRE_STATE_KEYS = (
+    "assessment_confirmed_modules",
+    "assessment_declined_modules",
+    "assessment_routing_hints",
+    "assessment_fact_provenance",
+    "assessment_questionnaire_route",
+    "assessment_pending_widget_resets",
+    "assessment_fact_save_notice",
+)
+QUESTION_WIDGET_STATE_KEYS = {
+    "INTAKE-USE-TASK": "assessment_fact_task",
+    "INTAKE-DECISION-IMPACT": "assessment_fact_material_influence",
+    "INTAKE-PERSONAL-DATA": "assessment_fact_personal_data",
+    "GDPR-AUTOMATED-DECISION": (
+        "assessment_question::GDPR-AUTOMATED-DECISION"
+    ),
+    "INTAKE-CONNECTED-PRODUCT": "assessment_fact_connected_product",
+    "INTAKE-RELATED-SERVICE": "assessment_fact_related_service",
+    "DATA-ACT-DATA-GENERATED": (
+        "assessment_question::DATA-ACT-DATA-GENERATED"
+    ),
+}
 PRIMARY_FINDING_STATUSES = frozenset(
     (
         FindingStatus.APPLIES,
@@ -176,6 +239,13 @@ def initialize_ui_state() -> None:
     st.session_state.setdefault("demo_scenario_id", None)
     st.session_state.setdefault("selected_finding_id", None)
     st.session_state.setdefault("ui_language", DEFAULT_LANGUAGE)
+    st.session_state.setdefault("assessment_confirmed_modules", [])
+    st.session_state.setdefault("assessment_declined_modules", [])
+    st.session_state.setdefault("assessment_routing_hints", [])
+    st.session_state.setdefault("assessment_fact_provenance", [])
+    st.session_state.setdefault("assessment_questionnaire_route", None)
+    st.session_state.setdefault("assessment_pending_widget_resets", [])
+    st.session_state.setdefault("assessment_fact_save_notice", None)
 
 
 def navigate(view: str) -> None:
@@ -190,6 +260,11 @@ def reset_case_dependent_state(*, view: str) -> AssessmentWorkflowBundle:
 
     for key in CASE_FORM_STATE_KEYS:
         st.session_state.pop(key, None)
+    for key in QUESTIONNAIRE_STATE_KEYS:
+        st.session_state.pop(key, None)
+    for key in tuple(st.session_state):
+        if str(key).startswith("assessment_question::"):
+            st.session_state.pop(key, None)
     bundle = create_assessment_workflow()
     st.session_state.assessment_workflow_bundle = bundle
     st.session_state.assessment_case_id = None
@@ -199,7 +274,69 @@ def reset_case_dependent_state(*, view: str) -> AssessmentWorkflowBundle:
     st.session_state.demo_scenario = None
     st.session_state.demo_scenario_id = None
     st.session_state.assessment_view = view
+    st.session_state.assessment_confirmed_modules = []
+    st.session_state.assessment_declined_modules = []
+    st.session_state.assessment_routing_hints = []
+    st.session_state.assessment_fact_provenance = []
+    st.session_state.assessment_questionnaire_route = None
+    st.session_state.assessment_pending_widget_resets = []
+    st.session_state.assessment_fact_save_notice = None
     return bundle
+
+
+def replace_workflow_bundle_preserving_case(
+    bundle: AssessmentWorkflowBundle,
+    case_id: str,
+    facts,
+) -> AssessmentWorkflowBundle:
+    """Clear run-owned state while preserving the active case identity."""
+
+    assessment_case = bundle.case_service.get_case(case_id)
+    replacement = create_assessment_workflow()
+    replacement.case_service.create_case(
+        assessment_case.name,
+        description=assessment_case.description,
+        facts=facts,
+        case_id=assessment_case.case_id,
+    )
+    st.session_state.assessment_workflow_bundle = replacement
+    st.session_state.assessment_report = None
+    st.session_state.selected_finding_id = None
+    if st.session_state.get("assessment_view") in (VIEW_RESULTS, VIEW_EVIDENCE):
+        st.session_state.assessment_view = VIEW_WORKSPACE
+    return replacement
+
+
+def clear_assessment_output() -> None:
+    """Clear all presentation state derived from an older fact route."""
+
+    st.session_state.assessment_report = None
+    st.session_state.selected_finding_id = None
+    if st.session_state.get("assessment_view") in (VIEW_RESULTS, VIEW_EVIDENCE):
+        st.session_state.assessment_view = VIEW_WORKSPACE
+
+
+def questionnaire_router():
+    """Return the deterministic Phase 1 router used by every UI scenario."""
+
+    return build_default_questionnaire_router()
+
+
+def current_questionnaire_route(facts) -> QuestionnaireRoute:
+    """Compute and persist the current route using canonical state only."""
+
+    route = questionnaire_router().route(
+        facts,
+        confirmed_modules=st.session_state.get(
+            "assessment_confirmed_modules", []
+        ),
+        confirmed_routing_hints=st.session_state.get(
+            "assessment_routing_hints", []
+        ),
+        fact_provenance=_provenance(),
+    )
+    st.session_state.assessment_questionnaire_route = route
+    return route
 
 
 def report_belongs_to_case(
@@ -361,20 +498,56 @@ def render_recommendation(
     )
 
 
+def _preloaded_provenance(facts, module_id: str) -> list[FactProvenance]:
+    """Create the same dependency metadata for fixture facts as UI answers."""
+
+    records: list[FactProvenance] = []
+    definition = module_definition(module_id)
+    for question_id in definition.question_ids:
+        metadata = question_definition(question_id)
+        value = resolve_fact(facts, metadata.fact_path)
+        if value is None or value is TriState.UNKNOWN or value is UseDomain.UNKNOWN:
+            continue
+        records.append(
+            FactProvenance(
+                fact_path=metadata.fact_path,
+                question_id=question_id,
+                module_id=module_id,
+                explicitly_confirmed=True,
+                depends_on=tuple(
+                    dependency.fact_path for dependency in metadata.dependencies
+                ),
+            )
+        )
+    return records
+
+
 def load_recruitment_demo() -> None:
     """Create a case from the existing pure-data recruitment demo fixture."""
 
     payload = load_fixture()
     bundle = reset_case_dependent_state(view=VIEW_WORKSPACE)
+    facts = build_assessment_facts(payload["facts"])
     assessment_case = bundle.case_service.create_case(
         payload["scenario"]["name"],
         description=payload["scenario"]["description"],
-        facts=build_assessment_facts(payload["facts"]),
+        facts=facts,
     )
     st.session_state.assessment_case_id = assessment_case.case_id
     st.session_state.demo_loaded = True
     st.session_state.demo_scenario = "recruitment"
     st.session_state.demo_scenario_id = payload["scenario_id"]
+    st.session_state.assessment_confirmed_modules = [
+        AI_ACT_EMPLOYMENT_RULE_ID
+    ]
+    st.session_state.assessment_routing_hints = [
+        "employment.recruitment",
+        "employment.candidate_ranking",
+    ]
+    st.session_state.assessment_fact_provenance = _preloaded_provenance(
+        facts,
+        AI_ACT_EMPLOYMENT_RULE_ID,
+    )
     st.rerun()
 
 
@@ -393,6 +566,14 @@ def load_industrial_demo() -> None:
     st.session_state.demo_loaded = True
     st.session_state.demo_scenario = "industrial"
     st.session_state.demo_scenario_id = payload["scenario_id"]
+    st.session_state.assessment_confirmed_modules = [EU_DATA_ACT_RULE_ID]
+    st.session_state.assessment_routing_hints = [
+        "data_act.industrial_connected_equipment"
+    ]
+    st.session_state.assessment_fact_provenance = _preloaded_provenance(
+        facts,
+        EU_DATA_ACT_RULE_ID,
+    )
     st.rerun()
 
 
@@ -503,34 +684,41 @@ def render_sidebar(
         facts_complete = False
         if case_id is not None:
             facts = bundle.case_service.get_case(case_id).current_facts
-            facts_complete = all(
-                (
-                    facts.use_context.domain is not UseDomain.UNKNOWN,
-                    bool(facts.use_context.task),
-                    facts.use_context.materially_influences_decision
-                    is not TriState.UNKNOWN,
-                )
-            )
+            route = current_questionnaire_route(facts)
+            facts_complete = required_facts_complete(route)
+        assessment_complete = bool(
+            case_id is not None
+            and report is not None
+            and report_belongs_to_case(bundle, report, case_id)
+        )
 
         statuses = (
-            (t("progress.case", language), case_complete),
-            (t("progress.facts", language), facts_complete),
-            (t("progress.assessment", language), report is not None),
+            ("case", t("progress.case", language), case_complete),
+            ("facts", t("progress.facts", language), facts_complete),
+            (
+                "assessment",
+                t("progress.assessment", language),
+                assessment_complete,
+            )
         )
-        for label, complete in statuses:
+        for step_id, label, complete in statuses:
             state = t(
                 "progress.complete" if complete else "progress.pending",
                 language,
             )
             icon = "✓" if complete else "○"
             st.markdown(
-                '<div class="ui-progress-row">'
+                '<div class="ui-progress-row" '
+                f'data-progress-step="{step_id}" '
+                f'data-progress-state="{"complete" if complete else "pending"}">'
                 f'<span aria-hidden="true">{icon}</span>'
                 f'<span>{label}</span><span class="ui-progress-state">{state}</span>'
                 "</div>",
                 unsafe_allow_html=True,
             )
-        st.progress(sum(complete for _, complete in statuses) / len(statuses))
+        st.progress(
+            sum(complete for _, _, complete in statuses) / len(statuses)
+        )
 
         if case_id is not None and st.button(
             t("navigation.new_assessment", language)
@@ -787,50 +975,152 @@ def render_case_context(
         detail_columns[2].code(facts.schema_version, language=None)
 
 
-def render_fact_collection(
+def _question_label(question_id: str, language: str) -> str:
+    return t(localized_text_key(question_id, language), language)
+
+
+def _question_help(question_id: str, language: str) -> str | None:
+    value = t(localized_text_key(question_id, language, help_text=True), language)
+    return None if value.endswith((".help.en", ".help.zh_cn")) else value
+
+
+def _hint_label(hint_id: str, language: str) -> str:
+    return t_or(f"routing_hint.{hint_id}", hint_id, language)
+
+
+def _module_label(module_id: str, language: str) -> str:
+    return t_or(module_definition(module_id).display_module_key, module_id, language)
+
+
+def _module_framework_label(module_id: str, language: str) -> str:
+    return framework_label(module_definition(module_id).framework, language)
+
+
+def _provenance() -> list[FactProvenance]:
+    records = st.session_state.get("assessment_fact_provenance", [])
+    return [record for record in records if isinstance(record, FactProvenance)]
+
+
+def _store_fact_update(
     bundle: AssessmentWorkflowBundle,
     case_id: str,
+    previous_facts,
+    updated_facts,
+    provenance_updates: list[FactProvenance],
+) -> AssessmentWorkflowBundle:
+    """Apply dependency invalidation and persist one canonical fact update."""
+
+    existing_provenance = _provenance()
+    invalidation = calculate_invalidations(
+        previous_facts,
+        updated_facts,
+        existing_provenance,
+    )
+    clear_fact_paths(updated_facts, invalidation.stale_fact_paths)
+    stale_paths = frozenset(invalidation.stale_fact_paths)
+    provenance_updates = [
+        record
+        for record in provenance_updates
+        if record.fact_path not in stale_paths
+    ]
+    provenance = remove_provenance(
+        existing_provenance,
+        invalidation.removed_provenance_fact_paths,
+    )
+    provenance = merge_provenance(provenance, provenance_updates)
+    provenance = [
+        record
+        for record in provenance
+        if (value := resolve_fact(updated_facts, record.fact_path)) is not None
+        and value is not TriState.UNKNOWN
+        and value is not UseDomain.UNKNOWN
+    ]
+    st.session_state.assessment_fact_provenance = provenance
+    invalidated_modules = frozenset(invalidation.invalidated_module_ids)
+    st.session_state.assessment_confirmed_modules = [
+        module_id
+        for module_id in st.session_state.get("assessment_confirmed_modules", [])
+        if module_id not in invalidated_modules
+    ]
+    clear_assessment_output()
+    bundle = replace_workflow_bundle_preserving_case(
+        bundle,
+        case_id,
+        updated_facts,
+    )
+    if invalidation.changed_upstream_fact_paths:
+        pending_resets = list(
+            st.session_state.get("assessment_pending_widget_resets", [])
+        )
+        for question_id in invalidation.invalidated_question_ids:
+            widget_key = QUESTION_WIDGET_STATE_KEYS.get(
+                question_id,
+                f"assessment_question::{question_id}",
+            )
+            if widget_key not in pending_resets:
+                pending_resets.append(widget_key)
+        st.session_state.assessment_pending_widget_resets = pending_resets
+    current_questionnaire_route(updated_facts)
+    return bundle
+
+
+def _render_universal_intake(
+    bundle: AssessmentWorkflowBundle,
+    case_id: str,
+    facts,
     language: str,
 ) -> None:
-    """Collect the facts required by the registered employment rule."""
+    """Render the small regulation-neutral intake using authored questions."""
 
-    assessment_case = bundle.case_service.get_case(case_id)
-    facts = assessment_case.current_facts
-
-    render_section_header(
-        t("facts.title", language),
-        eyebrow=t("facts.eyebrow", language),
-        description=t("facts.copy", language),
-    )
-    if st.session_state.get("demo_loaded"):
-        demo_name = scenario_text(
-            "case_name",
-            t(
-                "demo.industrial.title"
-                if st.session_state.get("demo_scenario") == "industrial"
-                else "demo.recruitment.title",
-                language,
-            ),
-            language,
-        )
-        st.info(t("facts.demo_loaded", language, name=demo_name))
-    domains = list(UseDomain)
-    influence_options = list(TriState)
+    for widget_key in st.session_state.get(
+        "assessment_pending_widget_resets", []
+    ):
+        st.session_state.pop(widget_key, None)
+    st.session_state.assessment_pending_widget_resets = []
+    notice = st.session_state.get("assessment_fact_save_notice")
+    if notice:
+        if notice == "normalization.saved_unknown":
+            st.warning(t(notice, language))
+        else:
+            st.success(t(notice, language))
+        st.session_state.assessment_fact_save_notice = None
     sync_predefined_task_input(facts, language)
+    domains = list(UseDomain)
+    tri_states = list(TriState)
+    affected_people = list(AffectedPerson)
+    if "assessment_routing_hints_widget" not in st.session_state:
+        st.session_state.assessment_routing_hints_widget = list(
+            st.session_state.get("assessment_routing_hints", [])
+        )
+
     with st.form("assessment_facts"):
+        system_name = st.text_input(
+            _question_label("INTAKE-SYSTEM-NAME", language),
+            value=facts.system.name or "",
+            help=_question_help("INTAKE-SYSTEM-NAME", language),
+            key="assessment_fact_system_name",
+        )
+        system_purpose = st.text_input(
+            _question_label("INTAKE-SYSTEM-PURPOSE", language),
+            value=facts.system.intended_purpose or "",
+            help=_question_help("INTAKE-SYSTEM-PURPOSE", language),
+            key="assessment_fact_system_purpose",
+        )
         domain = st.selectbox(
-            t("facts.domain.question", language),
+            _question_label("INTAKE-USE-DOMAIN", language),
             options=domains,
             index=domains.index(facts.use_context.domain),
             format_func=lambda value: domain_label(value, language),
+            help=_question_help("INTAKE-USE-DOMAIN", language),
             key="assessment_fact_domain",
         )
         task_options = {}
         if "assessment_fact_task" not in st.session_state:
             task_options["value"] = task_input_value(facts, language)
         task = st.text_area(
-            t("facts.task.question", language),
+            _question_label("INTAKE-USE-TASK", language),
             placeholder=t("facts.task.placeholder", language),
+            help=_question_help("INTAKE-USE-TASK", language),
             key="assessment_fact_task",
             **task_options,
         )
@@ -851,47 +1141,437 @@ def render_fact_collection(
                 key="assessment_confirm_ambiguous_task",
             )
         materially_influences = st.selectbox(
-            t("facts.influence.question", language),
-            options=influence_options,
-            index=influence_options.index(
-                facts.use_context.materially_influences_decision
-            ),
+            _question_label("INTAKE-DECISION-IMPACT", language),
+            options=tri_states,
+            index=tri_states.index(facts.use_context.materially_influences_decision),
             format_func=lambda value: tri_state_label(value, language),
+            help=_question_help("INTAKE-DECISION-IMPACT", language),
             key="assessment_fact_material_influence",
+        )
+        affected_persons = st.multiselect(
+            _question_label("INTAKE-AFFECTED-PERSONS", language),
+            options=affected_people,
+            default=facts.use_context.affected_persons or [],
+            format_func=lambda value: t_or(
+                f"affected_person.{value.value}", value.value, language
+            ),
+            help=_question_help("INTAKE-AFFECTED-PERSONS", language),
+            key="assessment_fact_affected_persons",
+        )
+        personal_data = st.selectbox(
+            _question_label("INTAKE-PERSONAL-DATA", language),
+            options=tri_states,
+            index=tri_states.index(facts.data_protection.personal_data_processed),
+            format_func=lambda value: tri_state_label(value, language),
+            help=_question_help("INTAKE-PERSONAL-DATA", language),
+            key="assessment_fact_personal_data",
+        )
+        connected_product = st.selectbox(
+            _question_label("INTAKE-CONNECTED-PRODUCT", language),
+            options=tri_states,
+            index=tri_states.index(facts.data_act.connected_product),
+            format_func=lambda value: tri_state_label(value, language),
+            help=_question_help("INTAKE-CONNECTED-PRODUCT", language),
+            key="assessment_fact_connected_product",
+        )
+        related_service = st.selectbox(
+            _question_label("INTAKE-RELATED-SERVICE", language),
+            options=tri_states,
+            index=tri_states.index(facts.data_act.related_service),
+            format_func=lambda value: tri_state_label(value, language),
+            help=_question_help("INTAKE-RELATED-SERVICE", language),
+            key="assessment_fact_related_service",
+        )
+        routing_hints = st.multiselect(
+            t("questionnaire.hints.label", language),
+            options=list(ROUTING_HINT_IDS),
+            format_func=lambda value: _hint_label(value, language),
+            help=t("questionnaire.hints.help", language),
+            key="assessment_routing_hints_widget",
         )
         facts_submitted = st.form_submit_button(
             t("facts.save", language),
             type="primary",
         )
 
-    if facts_submitted:
-        facts.use_context.domain = domain
-        facts.use_context.materially_influences_decision = materially_influences
-        protected_paths = (
-            frozenset(("use_context.materially_influences_decision",))
-            if materially_influences is not TriState.UNKNOWN
-            else frozenset()
+    if not facts_submitted:
+        return
+
+    previous_facts = deepcopy(facts)
+    updated_facts = deepcopy(facts)
+    answers = [
+        QuestionnaireAnswer("INTAKE-SYSTEM-NAME", system_name, system_name),
+        QuestionnaireAnswer(
+            "INTAKE-SYSTEM-PURPOSE", system_purpose, system_purpose
+        ),
+        QuestionnaireAnswer("INTAKE-USE-DOMAIN", domain),
+        QuestionnaireAnswer(
+            "INTAKE-AFFECTED-PERSONS", affected_persons
+        ),
+        QuestionnaireAnswer(
+            "INTAKE-DECISION-IMPACT", materially_influences
+        ),
+        QuestionnaireAnswer("INTAKE-PERSONAL-DATA", personal_data),
+        QuestionnaireAnswer("INTAKE-CONNECTED-PRODUCT", connected_product),
+        QuestionnaireAnswer("INTAKE-RELATED-SERVICE", related_service),
+    ]
+    provenance_updates = apply_question_answers(updated_facts, answers)
+    protected_paths = frozenset(
+        path
+        for path, value in (
+            ("use_context.materially_influences_decision", materially_influences),
+            ("data_protection.personal_data_processed", personal_data),
+            ("data_act.connected_product", connected_product),
+            ("data_act.related_service", related_service),
         )
-        apply_normalized_input(
-            facts,
-            normalization_preview,
-            ambiguous_text_confirmed=confirm_ambiguous_task,
-            protected_fact_paths=protected_paths,
+        if value is not TriState.UNKNOWN
+    )
+    apply_normalized_input(
+        updated_facts,
+        normalization_preview,
+        ambiguous_text_confirmed=confirm_ambiguous_task,
+        protected_fact_paths=protected_paths,
+    )
+    normalized_answers = []
+    for fact_path in normalization_preview.fact_updates:
+        if fact_path in protected_paths:
+            continue
+        normalized_answers.append(
+            QuestionnaireAnswer(
+                question_id_for_fact_path(fact_path),
+                resolve_fact(updated_facts, fact_path),
+                task,
+            )
         )
-        st.session_state.assessment_input_normalization = {
-            **normalization_preview.to_dict(),
-            "ambiguous_text_confirmed": confirm_ambiguous_task,
-        }
-        bundle.case_service.update_facts(case_id, facts)
-        st.session_state.assessment_report = None
-        st.session_state.selected_finding_id = None
-        if (
-            normalization_preview.status is NormalizationStatus.AMBIGUOUS
-            and not confirm_ambiguous_task
+    if normalized_answers:
+        provenance_updates.extend(
+            apply_question_answers(updated_facts, normalized_answers)
+        )
+    if updated_facts.use_context.task is not None:
+        provenance_updates.extend(
+            apply_question_answers(
+                updated_facts,
+                [
+                    QuestionnaireAnswer(
+                        "INTAKE-USE-TASK",
+                        updated_facts.use_context.task,
+                        task,
+                    )
+                ],
+            )
+        )
+    st.session_state.assessment_input_normalization = {
+        **normalization_preview.to_dict(),
+        "ambiguous_text_confirmed": confirm_ambiguous_task,
+    }
+    normalized_hints = hints_from_normalization(normalization_preview.mapping_ids)
+    st.session_state.assessment_routing_hints = list(
+        dict.fromkeys([*routing_hints, *normalized_hints])
+    )
+    _store_fact_update(
+        bundle,
+        case_id,
+        previous_facts,
+        updated_facts,
+        provenance_updates,
+    )
+    if (
+        normalization_preview.status is NormalizationStatus.AMBIGUOUS
+        and not confirm_ambiguous_task
+    ):
+        st.session_state.assessment_fact_save_notice = (
+            "normalization.saved_unknown"
+        )
+    else:
+        st.session_state.assessment_fact_save_notice = "facts.saved"
+    st.rerun()
+
+
+def _confirm_module(module_id: str) -> None:
+    confirmed = list(st.session_state.get("assessment_confirmed_modules", []))
+    if module_id not in confirmed:
+        confirmed.append(module_id)
+    st.session_state.assessment_confirmed_modules = confirmed
+    st.session_state.assessment_declined_modules = [
+        item
+        for item in st.session_state.get("assessment_declined_modules", [])
+        if item != module_id
+    ]
+    clear_assessment_output()
+
+
+def _decline_module(module_id: str) -> None:
+    st.session_state.assessment_confirmed_modules = [
+        item
+        for item in st.session_state.get("assessment_confirmed_modules", [])
+        if item != module_id
+    ]
+    declined = list(st.session_state.get("assessment_declined_modules", []))
+    if module_id not in declined:
+        declined.append(module_id)
+    st.session_state.assessment_declined_modules = declined
+    clear_assessment_output()
+
+
+def _render_question_widget(question, facts, language: str, *, key_prefix: str):
+    definition = question_definition(question.question_id)
+    label = _question_label(question.question_id, language)
+    help_text = _question_help(question.question_id, language)
+    current = current_answer(facts, question)
+    key = f"{key_prefix}::{question.question_id}"
+    if question.answer_type is AnswerType.TRI_STATE:
+        options = [option.value for option in question.options]
+        value = current if current in options else TriState.UNKNOWN.value
+        return st.selectbox(
+            label,
+            options=options,
+            index=options.index(value),
+            format_func=lambda option: t(f"value.{option}", language),
+            help=help_text,
+            key=key,
+        )
+    if question.answer_type is AnswerType.SINGLE_CHOICE:
+        options = [option.value for option in question.options]
+        value = current if current in options else options[0]
+        return st.selectbox(
+            label,
+            options=options,
+            index=options.index(value),
+            format_func=lambda option: t_or(
+                next(item.label for item in question.options if item.value == option),
+                option,
+                language,
+            ),
+            help=help_text,
+            key=key,
+        )
+    if question.answer_type is AnswerType.MULTIPLE_CHOICE:
+        options = [option.value for option in question.options]
+        return st.multiselect(
+            label,
+            options=options,
+            default=current or [],
+            format_func=lambda option: t_or(
+                next(item.label for item in question.options if item.value == option),
+                option,
+                language,
+            ),
+            help=help_text,
+            key=key,
+        )
+    if question.answer_type is AnswerType.TEXT:
+        return st.text_input(
+            label,
+            value=current or "",
+            help=help_text,
+            key=key,
+        )
+    raise ValueError(
+        f"unsupported questionnaire answer type {definition.answer_type.value!r}"
+    )
+
+
+def _render_routed_follow_ups(
+    bundle: AssessmentWorkflowBundle,
+    case_id: str,
+    facts,
+    route: QuestionnaireRoute,
+    language: str,
+) -> None:
+    follow_ups = [
+        question
+        for question in route.next_questions
+        if not question_definition(question.question_id).universal
+    ]
+    if not follow_ups:
+        st.caption(t("questionnaire.followups.none", language))
+        return
+    render_section_header(
+        t("questionnaire.followups.title", language),
+        description=t("questionnaire.followups.copy", language),
+    )
+    answers: dict[str, object] = {}
+    with st.form("assessment_follow_up_questions"):
+        for question in follow_ups:
+            answers[question.question_id] = _render_question_widget(
+                question,
+                facts,
+                language,
+                key_prefix="assessment_question",
+            )
+        submitted = st.form_submit_button(
+            t("questionnaire.followups.save", language),
+            type="primary",
+        )
+    if not submitted:
+        return
+    previous_facts = deepcopy(facts)
+    updated_facts = deepcopy(facts)
+    provenance_updates: list[FactProvenance] = []
+    for question in follow_ups:
+        owners = [
+            module_id
+            for module_id in route.confirmed_modules
+            if module_id in modules_for_question(question.question_id)
+        ]
+        provenance_updates.extend(
+            apply_question_answers(
+                updated_facts,
+                [QuestionnaireAnswer(question.question_id, answers[question.question_id])],
+                module_id=owners[0] if len(owners) == 1 else None,
+            )
+        )
+    _store_fact_update(
+        bundle,
+        case_id,
+        previous_facts,
+        updated_facts,
+        provenance_updates,
+    )
+    st.session_state.assessment_fact_save_notice = (
+        "questionnaire.followups.saved"
+    )
+    st.rerun()
+
+
+def _render_module_routing(
+    bundle: AssessmentWorkflowBundle,
+    case_id: str,
+    facts,
+    language: str,
+) -> None:
+    route = current_questionnaire_route(facts)
+    declined = frozenset(st.session_state.get("assessment_declined_modules", []))
+    suggestions = [
+        module_id for module_id in route.suggested_modules if module_id not in declined
+    ]
+
+    render_section_header(
+        t("questionnaire.modules.title", language),
+        eyebrow=t("questionnaire.modules.eyebrow", language),
+        description=t("questionnaire.modules.copy", language),
+    )
+    st.markdown(f"### {t('questionnaire.suggested.title', language)}")
+    if not suggestions:
+        st.caption(t("questionnaire.suggested.none", language))
+    for module_id in suggestions:
+        st.markdown(
+            f"**{escape(_module_label(module_id, language))}**  "
+            f"\n{escape(_module_framework_label(module_id, language))}"
+        )
+        reasons = route.routing_reasons.get(module_id, [])
+        with st.expander(t("questionnaire.why_suggested", language), expanded=False):
+            for reason in reasons:
+                st.write(t_or(f"routing_reason.{reason}", reason, language))
+        confirm_column, decline_column = st.columns(2)
+        if confirm_column.button(
+            t("questionnaire.confirm", language),
+            key=f"confirm_module::{module_id}",
+            type="primary",
+            use_container_width=True,
         ):
-            st.warning(t("normalization.saved_unknown", language))
-        else:
-            st.success(t("facts.saved", language))
+            _confirm_module(module_id)
+            st.rerun()
+        if decline_column.button(
+            t("questionnaire.decline", language),
+            key=f"decline_module::{module_id}",
+            use_container_width=True,
+        ):
+            _decline_module(module_id)
+            st.rerun()
+
+    st.markdown(f"### {t('questionnaire.confirmed.title', language)}")
+    if not route.confirmed_modules:
+        st.caption(t("questionnaire.confirmed.none", language))
+    for module_id in route.confirmed_modules:
+        label_column, action_column = st.columns([4, 1])
+        label_column.markdown(
+            f"**{escape(_module_label(module_id, language))}**  "
+            f"\n{escape(_module_framework_label(module_id, language))}"
+        )
+        if action_column.button(
+            t("questionnaire.remove", language),
+            key=f"remove_module::{module_id}",
+            use_container_width=True,
+        ):
+            _decline_module(module_id)
+            st.rerun()
+
+    with st.expander(t("questionnaire.manual.title", language), expanded=False):
+        manual = st.multiselect(
+            t("questionnaire.manual.label", language),
+            options=list(IMPLEMENTED_MODULE_IDS),
+            default=[],
+            format_func=lambda value: _module_label(value, language),
+            key="assessment_manual_modules_widget",
+        )
+        if st.button(
+            t("questionnaire.manual.confirm", language),
+            key="confirm_manual_modules",
+            disabled=not manual,
+        ):
+            for module_id in manual:
+                _confirm_module(module_id)
+            st.rerun()
+
+    st.markdown(f"### {t('questionnaire.unsupported.title', language)}")
+    if not route.unsupported_modules:
+        st.caption(t("questionnaire.unsupported.none", language))
+    for unsupported in route.unsupported_modules:
+        message_key = (
+            unsupported.message_keys.zh_cn_label_key
+            if language == "zh-CN"
+            else unsupported.message_keys.en_label_key
+        )
+        help_key = (
+            unsupported.message_keys.zh_cn_help_key
+            if language == "zh-CN"
+            else unsupported.message_keys.en_help_key
+        )
+        st.warning(
+            f"**{t_or(unsupported.display_module_key, unsupported.path_id, language)}**\n\n"
+            f"{t(message_key, language)} {t(help_key, language)}"
+        )
+
+    with st.expander(t("questionnaire.screened.title", language), expanded=False):
+        if not route.screened_out_modules:
+            st.caption(t("questionnaire.screened.none", language))
+        for module_id in route.screened_out_modules:
+            st.write(_module_label(module_id, language))
+
+    _render_routed_follow_ups(bundle, case_id, facts, route, language)
+
+
+def render_fact_collection(
+    bundle: AssessmentWorkflowBundle,
+    case_id: str,
+    language: str,
+) -> None:
+    """Collect universal facts and route only relevant legal modules."""
+
+    assessment_case = bundle.case_service.get_case(case_id)
+    facts = assessment_case.current_facts
+    render_section_header(
+        t("facts.title", language),
+        eyebrow=t("facts.eyebrow", language),
+        description=t("facts.copy", language),
+    )
+    if st.session_state.get("demo_loaded"):
+        demo_name = scenario_text(
+            "case_name",
+            t(
+                "demo.industrial.title"
+                if st.session_state.get("demo_scenario") == "industrial"
+                else "demo.recruitment.title",
+                language,
+            ),
+            language,
+        )
+        st.info(t("facts.demo_loaded", language, name=demo_name))
+    _render_universal_intake(bundle, case_id, facts, language)
+    latest_bundle = get_workflow_bundle()
+    latest_facts = latest_bundle.case_service.get_case(case_id).current_facts
+    _render_module_routing(latest_bundle, case_id, latest_facts, language)
 
 
 def render_assessment_action(
@@ -899,20 +1579,35 @@ def render_assessment_action(
     case_id: str,
     language: str,
 ) -> None:
-    """Execute the existing assessment workflow on user request."""
+    """Execute only explicitly confirmed modules through the existing workflow."""
 
     render_section_header(
         t("assessment.title", language),
         eyebrow=t("assessment.eyebrow", language),
         description=t("assessment.copy", language),
     )
+    confirmed_modules = list(
+        st.session_state.get("assessment_confirmed_modules", [])
+    )
+    if not confirmed_modules:
+        st.info(t("assessment.confirm_module_first", language))
     if st.button(
         t("assessment.run", language),
         type="primary",
         use_container_width=True,
+        disabled=not confirmed_modules,
     ):
+        full_facts = bundle.case_service.get_case(case_id).current_facts
+        execution_facts = execution_facts_for_modules(
+            full_facts,
+            confirmed_modules,
+        )
         with st.spinner(t("assessment.running", language)):
-            st.session_state.assessment_report = bundle.workflow.run(case_id)
+            bundle.case_service.update_facts(case_id, execution_facts)
+            try:
+                st.session_state.assessment_report = bundle.workflow.run(case_id)
+            finally:
+                bundle.case_service.update_facts(case_id, full_facts)
         st.session_state.selected_finding_id = None
         st.session_state.assessment_view = VIEW_RESULTS
         st.rerun()
@@ -1284,6 +1979,136 @@ def render_report(report: AssessmentReport, facts, language: str) -> None:
             for recommendation in report.recommendations:
                 st.code(recommendation, language=None)
 
+
+def _fact_input_source(facts, fact_path: str, language: str) -> str:
+    """Describe where a displayed fact entered the current case record."""
+
+    normalization = st.session_state.get("assessment_input_normalization") or {}
+    normalized_paths = set((normalization.get("fact_updates") or {}).keys())
+    if (
+        normalization.get("status") == NormalizationStatus.MATCHED.value
+        and (
+            fact_path in normalized_paths
+            or (
+                fact_path == "use_context.task"
+                and normalization.get("canonical_task")
+            )
+        )
+    ):
+        return t("trace.fact_source.normalization", language)
+    metadata = facts.fact_metadata.get(fact_path)
+    if (
+        st.session_state.get("demo_loaded")
+        and metadata is not None
+        and metadata.recorded_at is not None
+    ):
+        return t("trace.fact_source.demo_fixture", language)
+    record = next(
+        (
+            item
+            for item in _provenance()
+            if item.fact_path == fact_path
+        ),
+        None,
+    )
+    if record is not None and record.module_id:
+        return t("trace.fact_source.dynamic_questionnaire", language)
+    if record is not None and record.explicitly_confirmed:
+        return t("trace.fact_source.user_confirmed", language)
+    if metadata is not None and metadata.question_id:
+        return t("trace.fact_source.dynamic_questionnaire", language)
+    if st.session_state.get("demo_loaded"):
+        return t("trace.fact_source.demo_fixture", language)
+    return t("trace.fact_source.case_record", language)
+
+
+def _canonical_fact_value(facts, fact_path: str) -> str:
+    value = resolve_fact(facts, fact_path)
+    if isinstance(value, Enum):
+        return str(value.value)
+    if isinstance(value, list):
+        return ", ".join(
+            str(item.value if isinstance(item, Enum) else item)
+            for item in value
+        )
+    return "null" if value is None else str(value)
+
+
+def _rule_trace_summary(finding, language: str) -> str:
+    key = f"trace.rule.explanation.{finding.rule_id}.{finding.status.value}"
+    return t_or(key, finding_summary(finding, language), language)
+
+
+def _render_condition_fact_mapping(finding, facts, language: str) -> None:
+    """Render detailed predicates only through progressive disclosure."""
+
+    with st.expander(t("trace.rule.mapping", language), expanded=False):
+        if not finding.trace:
+            st.caption(t("trace.rule.none", language))
+            return
+        for entry in finding.trace:
+            fact_path = entry.fact_refs[0] if entry.fact_refs else None
+            state_label, state_tone = reasoning_state(entry.result, language)
+            fact_name = (
+                fact_label(fact_path, language)
+                if fact_path
+                else t("value.not_recorded", language)
+            )
+            value = (
+                fact_value(facts, fact_path, language)
+                if fact_path
+                else readable_result(entry.result, language)
+            )
+            st.markdown(
+                '<div class="ui-condition-map-row">'
+                '<div class="ui-condition-map-condition">'
+                f"{escape(trace_description(entry, language))}</div>"
+                '<div class="ui-condition-map-fact">'
+                f"<strong>{escape(fact_name)}</strong> · {escape(value)}</div>"
+                f'<span class="ui-state ui-state--{state_tone}">'
+                f"{escape(state_label)}</span></div>",
+                unsafe_allow_html=True,
+            )
+
+
+def _render_trace_technical_details(finding, facts, language: str) -> None:
+    """Keep raw rule and provenance identities outside the primary trace."""
+
+    with st.expander(t("trace.rule.technical", language), expanded=False):
+        st.caption(t("trace.rule.id_version", language))
+        st.code(
+            f'{finding.rule_id or t("value.not_recorded", language)} · '
+            f'{finding.rule_version or t("value.not_recorded", language)}',
+            language=None,
+        )
+        if finding.reason_codes:
+            st.caption(t("technical.raw_reasons", language))
+            for reason_code in finding.reason_codes:
+                st.code(reason_code, language=None)
+        provenance_by_path = {
+            item.fact_path: item for item in _provenance()
+        }
+        for fact_path in finding.fact_refs:
+            st.caption(fact_label(fact_path, language))
+            st.code(fact_path, language=None)
+            st.code(_canonical_fact_value(facts, fact_path), language=None)
+            provenance = provenance_by_path.get(fact_path)
+            metadata = facts.fact_metadata.get(fact_path)
+            question_ids = []
+            if provenance is not None:
+                question_ids.append(provenance.question_id)
+            if (
+                metadata is not None
+                and metadata.question_id
+                and metadata.question_id not in question_ids
+            ):
+                question_ids.append(metadata.question_id)
+            for question_id in question_ids:
+                st.code(question_id, language=None)
+            if provenance is not None and provenance.module_id:
+                st.code(provenance.module_id, language=None)
+
+
 def render_compliance_chain(
     finding,
     bound_evidence: list,
@@ -1314,7 +2139,10 @@ def render_compliance_chain(
                     '<span class="ui-trace-fact-dot"></span>'
                     '<span class="ui-trace-fact-content">'
                     f"<strong>{escape(fact_label(fact_path, language))}</strong>"
-                    f"<span>{escape(fact_value(facts, fact_path, language))}</span>"
+                    '<span class="ui-trace-fact-value">'
+                    f"{escape(fact_value(facts, fact_path, language))}</span>"
+                    '<small class="ui-trace-fact-source">'
+                    f"{escape(_fact_input_source(facts, fact_path, language))}</small>"
                     "</span></div>",
                     unsafe_allow_html=True,
                 )
@@ -1328,22 +2156,31 @@ def render_compliance_chain(
         t("trace.rule.copy", language),
     )
     with st.container():
-        st.markdown(f"### {rule_label(finding.rule_id, language)}")
+        rule_name = t_or(
+            f"trace.rule.name.{finding.rule_id}",
+            rule_label(finding.rule_id, language),
+            language,
+        )
+        st.markdown(f"### {rule_name}")
         if finding.trace:
-            render_decision_path(finding, facts, language)
+            matched_count = sum(
+                reasoning_state(entry.result, language)[1] == "matched"
+                for entry in finding.trace
+            )
+            st.markdown(
+                '<div class="ui-rule-application-summary">'
+                f'<strong>{escape(t("trace.rule.conditions", language, matched=matched_count, total=len(finding.trace)))}</strong>'
+                '<span class="ui-rule-application-result">'
+                f'{escape(t("trace.rule.overall_result", language))}: '
+                f'{escape(status_label(finding.status, language))}</span>'
+                f'<p>{escape(_rule_trace_summary(finding, language))}</p>'
+                "</div>",
+                unsafe_allow_html=True,
+            )
+            _render_condition_fact_mapping(finding, facts, language)
         else:
             st.caption(t("trace.rule.none", language))
-        with st.expander(t("trace.rule.technical", language), expanded=False):
-            st.caption(t("trace.rule.id_version", language))
-            st.code(
-                f'{finding.rule_id or t("value.not_recorded", language)} · '
-                f'{finding.rule_version or t("value.not_recorded", language)}',
-                language=None,
-            )
-            if finding.reason_codes:
-                st.caption(t("technical.raw_reasons", language))
-                for reason_code in finding.reason_codes:
-                    st.code(reason_code, language=None)
+        _render_trace_technical_details(finding, facts, language)
 
     render_trace_connector()
     render_trace_stage(

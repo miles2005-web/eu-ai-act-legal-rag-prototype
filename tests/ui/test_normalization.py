@@ -161,6 +161,28 @@ class LegalInputNormalizationTests(unittest.TestCase):
             },
         )
 
+    def test_controlled_loan_phrases_are_auditable_without_silent_decision_fact(self) -> None:
+        result = normalize_legal_input(
+            "personal financial and credit analysis; automated loan "
+            "approval/rejection; legal or significant economic effect"
+        )
+
+        self.assertEqual(result.status, NormalizationStatus.MATCHED)
+        self.assertEqual(result.canonical_task, "automated consumer credit decision")
+        self.assertIn("decision.credit.v1", result.mapping_ids)
+        self.assertEqual(
+            result.fact_updates["data_protection.personal_data_processed"],
+            TriState.YES,
+        )
+        self.assertEqual(
+            result.fact_updates["use_context.materially_influences_decision"],
+            TriState.YES,
+        )
+        self.assertNotIn(
+            "data_protection.automated_individual_decision",
+            result.fact_updates,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

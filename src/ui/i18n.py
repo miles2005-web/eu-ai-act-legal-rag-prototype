@@ -170,7 +170,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "Example: Screens CVs and ranks candidates for recruiter review."
         ),
         "facts.influence.question": (
-            "Does the AI output materially influence an employment-related decision?"
+            "Does the output materially influence a decision or operational outcome?"
         ),
         "facts.save": "Save facts",
         "facts.saved": "Facts saved.",
@@ -217,8 +217,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "report.gaps.other": "{count} information gaps",
         "report.findings.title": "Findings",
         "report.no_finding": (
-            "No potentially applicable or undetermined issue was produced from "
-            "the currently available facts."
+            "No substantive assessment was produced. Additional facts or an "
+            "implemented assessment module are required."
         ),
         "report.screened.one": "Other screened issue ({count})",
         "report.screened.other": "Other screened issues ({count})",
@@ -633,7 +633,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "facts.domain.question": "AI 系统用于什么场景？",
         "facts.task.question": "AI 系统执行什么任务？",
         "facts.task.placeholder": "例如：筛选简历并排列候选人，供招聘人员审阅。",
-        "facts.influence.question": "AI 输出是否会实质影响与就业相关的决策？",
+        "facts.influence.question": "系统输出是否会实质影响个人决定或运营结果？",
         "facts.save": "保存事实",
         "facts.saved": "事实已保存。",
         "normalization.recognized": "已识别受控映射：{mappings}",
@@ -665,7 +665,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "report.gaps.one": "{count} 项信息缺口",
         "report.gaps.other": "{count} 项信息缺口",
         "report.findings.title": "评估结论",
-        "report.no_finding": "根据当前事实，未生成可能适用或无法确定的法律问题。",
+        "report.no_finding": (
+            "尚未形成实质性评估结论。需要补充事实，或当前场景尚需相应的评估模块支持。"
+        ),
         "report.screened.one": "其他已筛查问题（{count}）",
         "report.screened.other": "其他已筛查问题（{count}）",
         "report.screened.copy": "这些规则已执行并保留用于审计，但其筛查条件未满足。",
@@ -900,6 +902,224 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "component.version": "版本",
     },
 }
+
+
+_ROUTED_QUESTION_COPY = {
+    "system_name": {
+        "en": ("What is the AI system called?", "Use a stable internal or product name."),
+        "zh-CN": ("该 AI 系统叫什么？", "请填写稳定的内部名称或产品名称。"),
+    },
+    "system_purpose": {
+        "en": ("What is the system's intended purpose?", "Describe the purpose, not a legal conclusion."),
+        "zh-CN": ("该系统的预期用途是什么？", "请描述用途，不要填写法律结论。"),
+    },
+    "use_domain": {
+        "en": ("In which context is the system used?", "Select the closest controlled use domain."),
+        "zh-CN": ("该系统用于什么场景？", "请选择最接近的受控使用领域。"),
+    },
+    "use_task": {
+        "en": ("What task does the system perform?", "Free text is retained, but does not by itself establish a legal fact."),
+        "zh-CN": ("该系统执行什么任务？", "系统会保留原始文本，但自由文本本身不会形成正式法律事实。"),
+    },
+    "affected_persons": {
+        "en": ("Who may be affected by the system?", "Select every known group."),
+        "zh-CN": ("该系统可能影响哪些人员？", "请选择所有已知群体。"),
+    },
+    "decision_impact": {
+        "en": ("Does the output materially influence a decision or operational outcome?", "Use Unknown when the effect has not been confirmed."),
+        "zh-CN": ("系统输出是否会实质影响个人决定或运营结果？", "尚未确认影响时请选择“未知”。"),
+    },
+    "human_review_before_effect": {
+        "en": ("Is there human review before the output takes effect?", "Record the actual workflow, not the intended policy."),
+        "zh-CN": ("输出产生效果前是否经过人工复核？", "请按实际流程回答，而非仅按制度设计回答。"),
+    },
+    "personal_data_processed": {
+        "en": ("Does the system process personal data?", "This is a factual screening input, not a GDPR conclusion."),
+        "zh-CN": ("该系统是否处理个人数据？", "这是事实筛查输入，不是 GDPR 法律结论。"),
+    },
+    "automated_individual_decision": {
+        "en": ("Is an automated decision about an individual involved?", "Include decisions produced or materially driven by automated processing."),
+        "zh-CN": ("是否涉及针对个人的自动化决定？", "包括由自动化处理作出或实质推动的个人决定。"),
+    },
+    "connected_product": {
+        "en": ("Is a connected product involved?", "Examples include connected machinery or equipment."),
+        "zh-CN": ("是否涉及互联产品？", "例如联网机械或互联设备。"),
+    },
+    "related_service": {
+        "en": ("Is a related service involved?", "Answer independently from the connected-product field."),
+        "zh-CN": ("是否涉及相关服务？", "请与互联产品字段分别判断。"),
+    },
+    "data_generated": {
+        "en": ("Does the product or related service generate data?", "Record whether operational or use data is generated."),
+        "zh-CN": ("产品或相关服务是否生成数据？", "请记录是否生成运行数据或使用数据。"),
+    },
+}
+
+for _question_key, _localized in _ROUTED_QUESTION_COPY.items():
+    for _language, (_label, _help) in _localized.items():
+        TRANSLATIONS[_language][f"question.{_question_key}.label.en"] = _label
+        TRANSLATIONS[_language][f"question.{_question_key}.label.zh_cn"] = _label
+        TRANSLATIONS[_language][f"question.{_question_key}.help.en"] = _help
+        TRANSLATIONS[_language][f"question.{_question_key}.help.zh_cn"] = _help
+
+TRANSLATIONS["en"].update(
+    {
+        "questionnaire.hints.label": "Controlled use-case descriptors",
+        "questionnaire.hints.help": "Select only descriptors you can explicitly confirm. These are routing inputs, not legal conclusions.",
+        "questionnaire.modules.eyebrow": "Deterministic routing",
+        "questionnaire.modules.title": "Assessment modules",
+        "questionnaire.modules.copy": "Review suggested modules before any formal screening is run.",
+        "questionnaire.suggested.title": "Suggested assessment modules",
+        "questionnaire.suggested.none": "No implemented module is currently suggested from confirmed facts and routing inputs.",
+        "questionnaire.confirmed.title": "Confirmed assessment modules",
+        "questionnaire.confirmed.none": "No assessment module has been confirmed.",
+        "questionnaire.unsupported.title": "Potentially relevant routes not yet supported",
+        "questionnaire.unsupported.none": "No unsupported route was identified from the current controlled inputs.",
+        "questionnaire.screened.title": "Screened-out routes",
+        "questionnaire.screened.none": "No implemented route is currently screened out.",
+        "questionnaire.why_suggested": "Why this was suggested",
+        "questionnaire.confirm": "Confirm module",
+        "questionnaire.decline": "Decline",
+        "questionnaire.remove": "Remove",
+        "questionnaire.manual.title": "Manually select an implemented module",
+        "questionnaire.manual.label": "Modules available for screening",
+        "questionnaire.manual.confirm": "Confirm selected modules",
+        "questionnaire.followups.title": "Module follow-up questions",
+        "questionnaire.followups.copy": "Only missing facts required by confirmed modules are shown.",
+        "questionnaire.followups.none": "Confirmed modules have no unanswered required questions.",
+        "questionnaire.followups.save": "Save follow-up answers",
+        "questionnaire.followups.saved": "Follow-up facts saved.",
+        "assessment.confirm_module_first": "Confirm at least one implemented assessment module before running the assessment.",
+        "trace.fact_source.dynamic_questionnaire": "Dynamic questionnaire",
+        "trace.fact_source.demo_fixture": "Demo fixture",
+        "trace.fact_source.user_confirmed": "User-confirmed structured input",
+        "trace.fact_source.normalization": "Deterministic normalization",
+        "trace.fact_source.case_record": "Current case record",
+        "trace.rule.mapping": "View condition-to-fact mapping",
+        "trace.rule.conditions": "Conditions satisfied: {matched} of {total}",
+        "trace.rule.overall_result": "Overall result",
+        "trace.rule.name.AI_ACT_HIGH_RISK_EMPLOYMENT": "AI Act employment high-risk test",
+        "trace.rule.name.GDPR_ARTICLE22_RELEVANCE": "GDPR Article 22 relevance test",
+        "trace.rule.name.EU_DATA_ACT_RELEVANCE": "EU Data Act relevance test",
+        "trace.rule.explanation.GDPR_ARTICLE22_RELEVANCE.potentially_applies": (
+            "The confirmed facts satisfy all predicates of the relevance-screening "
+            "rule. GDPR Article 22 may therefore be relevant and further legal "
+            "review is required."
+        ),
+        "module.ai_act.employment": "AI Act employment high-risk screening",
+        "module.gdpr.article22": "GDPR Article 22 relevance screening",
+        "module.data_act.relevance": "EU Data Act relevance screening",
+        "module.ai_act.credit_essential_services": "AI Act credit and essential-services assessment",
+        "module.ai_act.judicial": "AI Act judicial-system assessment",
+        "module.ai_act.product_safety": "AI Act product-safety assessment",
+        "question.unsupported_ai_act_credit.label.en": "This legal assessment module is not yet implemented.",
+        "question.unsupported_ai_act_credit.help.en": "No applicability or compliance conclusion is produced for this route.",
+        "question.unsupported_ai_act_judicial.label.en": "This legal assessment module is not yet implemented.",
+        "question.unsupported_ai_act_judicial.help.en": "No applicability or compliance conclusion is produced for this route.",
+        "question.unsupported_ai_act_product_safety.label.en": "This legal assessment module is not yet implemented.",
+        "question.unsupported_ai_act_product_safety.help.en": "No applicability or compliance conclusion is produced for this route.",
+        "routing_hint.employment.recruitment": "Recruitment",
+        "routing_hint.employment.selection": "Candidate or worker selection",
+        "routing_hint.employment.candidate_ranking": "Candidate ranking",
+        "routing_hint.employment.worker_management": "Worker management",
+        "routing_hint.decision.individual_significant": "Individual decision with legal or significant effect",
+        "routing_hint.decision.credit": "Credit or loan decision",
+        "routing_hint.data_act.industrial_connected_equipment": "Industrial connected equipment",
+        "routing_hint.ai_act.product_safety_component": "AI safety component of a regulated product",
+        "routing_reason.EMPLOYMENT_CONTEXT_AND_CONFIRMED_FUNCTION": "Employment domain and a confirmed employment function.",
+        "routing_reason.PERSONAL_DATA_AND_AUTOMATED_SIGNIFICANT_DECISION": "Confirmed personal-data processing and automated significant decision facts.",
+        "routing_reason.PERSONAL_DATA_AND_CONFIRMED_INDIVIDUAL_DECISION_CONTEXT": "Personal data and a confirmed individual-decision context.",
+        "routing_reason.CONNECTED_PRODUCT_OR_SERVICE_GENERATES_DATA": "A connected product or related service generates data.",
+        "routing_reason.CONFIRMED_CONNECTED_EQUIPMENT_CONTEXT": "A connected-equipment context was explicitly confirmed.",
+        "routing_reason.USER_CONFIRMED_MODULE": "The user manually confirmed this module.",
+        "affected_person.worker": "Worker",
+        "affected_person.job_candidate": "Job candidate",
+        "affected_person.student": "Student",
+        "affected_person.consumer": "Consumer",
+        "affected_person.patient": "Patient",
+        "affected_person.child": "Child",
+        "affected_person.other": "Other person",
+    }
+)
+
+TRANSLATIONS["zh-CN"].update(
+    {
+        "questionnaire.hints.label": "受控使用场景描述",
+        "questionnaire.hints.help": "仅选择可以明确确认的描述。这些内容只用于路由，不构成法律结论。",
+        "questionnaire.modules.eyebrow": "确定性路由",
+        "questionnaire.modules.title": "评估模块",
+        "questionnaire.modules.copy": "运行正式筛查前，请先审阅并确认建议模块。",
+        "questionnaire.suggested.title": "建议的评估模块",
+        "questionnaire.suggested.none": "根据当前已确认事实和路由输入，暂未建议已实现模块。",
+        "questionnaire.confirmed.title": "已确认的评估模块",
+        "questionnaire.confirmed.none": "尚未确认任何评估模块。",
+        "questionnaire.unsupported.title": "可能相关但尚未支持的路径",
+        "questionnaire.unsupported.none": "当前受控输入未识别出尚未支持的路径。",
+        "questionnaire.screened.title": "已筛除的路径",
+        "questionnaire.screened.none": "当前没有已筛除的已实现路径。",
+        "questionnaire.why_suggested": "建议原因",
+        "questionnaire.confirm": "确认模块",
+        "questionnaire.decline": "暂不评估",
+        "questionnaire.remove": "移除",
+        "questionnaire.manual.title": "手动选择已实现模块",
+        "questionnaire.manual.label": "可供筛查的模块",
+        "questionnaire.manual.confirm": "确认所选模块",
+        "questionnaire.followups.title": "模块补充问题",
+        "questionnaire.followups.copy": "仅显示已确认模块尚缺失的必要事实。",
+        "questionnaire.followups.none": "已确认模块不存在尚未回答的必要问题。",
+        "questionnaire.followups.save": "保存补充回答",
+        "questionnaire.followups.saved": "补充事实已保存。",
+        "assessment.confirm_module_first": "运行评估前，请至少确认一个已实现的评估模块。",
+        "trace.fact_source.dynamic_questionnaire": "动态问卷",
+        "trace.fact_source.demo_fixture": "演示案例预设事实",
+        "trace.fact_source.user_confirmed": "用户确认的结构化输入",
+        "trace.fact_source.normalization": "确定性文本规范化",
+        "trace.fact_source.case_record": "当前案例事实记录",
+        "trace.rule.mapping": "查看规则条件与事实映射",
+        "trace.rule.conditions": "已满足条件：{matched}/{total}",
+        "trace.rule.overall_result": "总体判断结果",
+        "trace.rule.name.AI_ACT_HIGH_RISK_EMPLOYMENT": "《欧盟人工智能法案》就业高风险测试",
+        "trace.rule.name.GDPR_ARTICLE22_RELEVANCE": "GDPR 第22条相关性测试",
+        "trace.rule.name.EU_DATA_ACT_RELEVANCE": "《欧盟数据法案》相关性测试",
+        "trace.rule.explanation.GDPR_ARTICLE22_RELEVANCE.potentially_applies": (
+            "现有事实满足该相关性筛查规则的全部判断条件，因此可能涉及 GDPR 第22条，"
+            "需要进一步法律审查。"
+        ),
+        "module.ai_act.employment": "《欧盟人工智能法案》就业高风险筛查",
+        "module.gdpr.article22": "GDPR 第 22 条相关性筛查",
+        "module.data_act.relevance": "《欧盟数据法案》相关性筛查",
+        "module.ai_act.credit_essential_services": "《欧盟人工智能法案》信贷与基本服务评估",
+        "module.ai_act.judicial": "《欧盟人工智能法案》司法系统评估",
+        "module.ai_act.product_safety": "《欧盟人工智能法案》产品安全评估",
+        "question.unsupported_ai_act_credit.label.zh_cn": "当前版本尚未实现该法律评估模块。",
+        "question.unsupported_ai_act_credit.help.zh_cn": "本路径不会生成适用、不适用或合规结论。",
+        "question.unsupported_ai_act_judicial.label.zh_cn": "当前版本尚未实现该法律评估模块。",
+        "question.unsupported_ai_act_judicial.help.zh_cn": "本路径不会生成适用、不适用或合规结论。",
+        "question.unsupported_ai_act_product_safety.label.zh_cn": "当前版本尚未实现该法律评估模块。",
+        "question.unsupported_ai_act_product_safety.help.zh_cn": "本路径不会生成适用、不适用或合规结论。",
+        "routing_hint.employment.recruitment": "招聘",
+        "routing_hint.employment.selection": "候选人或劳动者甄选",
+        "routing_hint.employment.candidate_ranking": "候选人排序",
+        "routing_hint.employment.worker_management": "劳动者管理",
+        "routing_hint.decision.individual_significant": "对个人产生法律效果或类似重大影响的决定",
+        "routing_hint.decision.credit": "信贷或贷款决定",
+        "routing_hint.data_act.industrial_connected_equipment": "工业互联设备",
+        "routing_hint.ai_act.product_safety_component": "受监管产品的 AI 安全部件",
+        "routing_reason.EMPLOYMENT_CONTEXT_AND_CONFIRMED_FUNCTION": "就业领域与已确认的就业功能同时存在。",
+        "routing_reason.PERSONAL_DATA_AND_AUTOMATED_SIGNIFICANT_DECISION": "已确认个人数据处理及自动化重大决定事实。",
+        "routing_reason.PERSONAL_DATA_AND_CONFIRMED_INDIVIDUAL_DECISION_CONTEXT": "涉及个人数据，且已确认个人决定场景。",
+        "routing_reason.CONNECTED_PRODUCT_OR_SERVICE_GENERATES_DATA": "互联产品或相关服务会生成数据。",
+        "routing_reason.CONFIRMED_CONNECTED_EQUIPMENT_CONTEXT": "已明确确认互联设备场景。",
+        "routing_reason.USER_CONFIRMED_MODULE": "用户已手动确认该模块。",
+        "affected_person.worker": "劳动者",
+        "affected_person.job_candidate": "求职者",
+        "affected_person.student": "学生",
+        "affected_person.consumer": "消费者",
+        "affected_person.patient": "患者",
+        "affected_person.child": "儿童",
+        "affected_person.other": "其他人员",
+    }
+)
 
 
 def normalize_language(language: str | None) -> str:

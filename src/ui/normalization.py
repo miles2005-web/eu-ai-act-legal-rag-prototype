@@ -110,10 +110,22 @@ _MAPPINGS = (
         (
             "处理个人数据",
             "涉及个人数据",
+            "个人财务与信贷分析",
             "processes personal data",
             "personal data involved",
+            "personal financial and credit analysis",
         ),
         fact_updates=(("data_protection.personal_data_processed", TriState.YES),),
+    ),
+    PhraseMapping(
+        "decision.credit.v1",
+        (
+            "自动贷款批准或拒绝",
+            "自动批准或拒绝贷款",
+            "automated loan approval/rejection",
+            "automated loan approval or rejection",
+        ),
+        canonical_task="automated consumer credit decision",
     ),
     PhraseMapping(
         "gdpr.solely_automated_decision.v1",
@@ -132,8 +144,10 @@ _MAPPINGS = (
         (
             "产生法律效果",
             "产生类似重大影响",
+            "法律效果或重大经济影响",
             "produces legal effects",
             "similarly significant effect",
+            "legal or significant economic effect",
         ),
         fact_updates=(("use_context.materially_influences_decision", TriState.YES),),
     ),

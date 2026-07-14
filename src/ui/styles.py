@@ -701,9 +701,11 @@ p, label, [data-testid="stCaptionContainer"] {
 }
 
 .ui-trace-fact-content {
-    display: flex;
+    align-items: baseline;
+    display: grid;
     flex: 1;
-    justify-content: space-between;
+    gap: 0.12rem 1rem;
+    grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .ui-trace-fact-content strong {
@@ -711,10 +713,16 @@ p, label, [data-testid="stCaptionContainer"] {
     font-size: 0.85rem;
 }
 
-.ui-trace-fact-content span {
+.ui-trace-fact-value {
     color: var(--app-text-secondary);
     font-size: 0.82rem;
     text-align: right;
+}
+
+.ui-trace-fact-source {
+    color: var(--app-text-tertiary);
+    font-size: 0.7rem;
+    grid-column: 1 / -1;
 }
 
 .ui-trace-fact-dot {
@@ -724,6 +732,51 @@ p, label, [data-testid="stCaptionContainer"] {
     flex: 0 0 0.4rem;
     height: 0.4rem;
     opacity: 0.55;
+}
+
+.ui-rule-application-summary {
+    border-bottom: 1px solid var(--app-border);
+    margin: 0.3rem 0 0.8rem;
+    padding: 0.4rem 0 1rem;
+}
+
+.ui-rule-application-summary > strong {
+    color: var(--app-text-primary);
+    display: block;
+    font-size: 1rem;
+}
+
+.ui-rule-application-result {
+    color: var(--app-text-secondary);
+    display: block;
+    font-size: 0.78rem;
+    margin-top: 0.25rem;
+}
+
+.ui-rule-application-summary p {
+    color: var(--app-text-secondary);
+    line-height: 1.55;
+    margin: 0.75rem 0 0;
+    max-width: 760px;
+}
+
+.ui-condition-map-row {
+    align-items: center;
+    border-bottom: 1px solid var(--app-border);
+    display: grid;
+    gap: 0.25rem 0.8rem;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) auto;
+    padding: 0.7rem 0;
+}
+
+.ui-condition-map-condition {
+    color: var(--app-text-primary);
+    font-size: 0.8rem;
+}
+
+.ui-condition-map-fact {
+    color: var(--app-text-secondary);
+    font-size: 0.76rem;
 }
 
 .ui-audit-authority {
@@ -776,12 +829,21 @@ p, label, [data-testid="stCaptionContainer"] {
 
     .ui-trace-fact-content {
         align-items: flex-start;
-        flex-direction: column;
+        grid-template-columns: 1fr;
         gap: 0.15rem;
     }
 
-    .ui-trace-fact-content span {
+    .ui-trace-fact-value {
         text-align: left;
+    }
+
+    .ui-trace-fact-source {
+        grid-column: 1;
+    }
+
+    .ui-condition-map-row {
+        align-items: start;
+        grid-template-columns: 1fr;
     }
 }
 

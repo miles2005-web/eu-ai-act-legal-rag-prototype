@@ -24,6 +24,7 @@ from src.ui.components.common import (
     group_evidence_by_citation,
     reasoning_state,
 )
+from src.ui.styles import ENTERPRISE_STYLES
 
 
 class UIComponentSmokeTests(unittest.TestCase):
@@ -36,6 +37,11 @@ class UIComponentSmokeTests(unittest.TestCase):
             render_section_header,
         ):
             self.assertTrue(callable(component))
+
+    def test_evidence_trace_styles_separate_facts_and_rule_summary(self) -> None:
+        self.assertIn(".ui-trace-fact-source", ENTERPRISE_STYLES)
+        self.assertIn(".ui-rule-application-summary", ENTERPRISE_STYLES)
+        self.assertIn(".ui-condition-map-row", ENTERPRISE_STYLES)
 
     def test_framework_labels_cover_supported_frameworks(self) -> None:
         self.assertEqual(

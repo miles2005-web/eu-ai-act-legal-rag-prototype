@@ -23,6 +23,7 @@ from src.assessment.questionnaire.routing_models import (
     EligibilityHintGroup,
     FactCondition,
     FactConditionOperator,
+    FactProvenance,
     QuestionnaireRoute,
     RoutingQuestionDefinition,
     UnsupportedPathDefinition,
@@ -82,11 +83,22 @@ class QuestionnaireRouter:
         *,
         confirmed_modules: Iterable[str] = (),
         confirmed_routing_hints: Iterable[str] = (),
+        fact_provenance: Iterable[FactProvenance] = (),
     ) -> QuestionnaireRoute:
-        """Return a deterministic question route for the current facts."""
+        """Return a deterministic route for canonical facts and provenance.
+
+        Provenance is validated and carried by the caller for invalidation; it
+        does not independently activate a module or alter legal screening.
+        """
 
         if not isinstance(facts, AssessmentFacts):
             raise TypeError("facts must be an AssessmentFacts instance")
+        provenance_records = tuple(fact_provenance)
+        if any(
+            not isinstance(item, FactProvenance)
+            for item in provenance_records
+        ):
+            raise TypeError("fact_provenance must contain FactProvenance values")
         confirmed_input = self._stable_unique_strings(
             confirmed_modules,
             field_name="confirmed_modules",

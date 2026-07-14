@@ -27,6 +27,53 @@ class I18nTests(unittest.TestCase):
     def test_missing_chinese_translation_falls_back_to_english(self) -> None:
         self.assertEqual(t("test.english_only", "zh-CN"), "English fallback")
 
+    def test_routed_questionnaire_copy_is_bilingual_and_neutral(self) -> None:
+        self.assertEqual(
+            t("question.decision_impact.label.en", "en"),
+            "Does the output materially influence a decision or operational outcome?",
+        )
+        self.assertEqual(
+            t("question.decision_impact.label.zh_cn", "zh-CN"),
+            "系统输出是否会实质影响个人决定或运营结果？",
+        )
+        self.assertNotIn(
+            "employment",
+            t("question.decision_impact.label.en", "en").casefold(),
+        )
+        self.assertEqual(
+            t("module.gdpr.article22", "zh-CN"),
+            "GDPR 第 22 条相关性筛查",
+        )
+
+    def test_zero_finding_copy_does_not_imply_zero_legal_risk(self) -> None:
+        self.assertEqual(
+            t("report.no_finding", "en"),
+            "No substantive assessment was produced. Additional facts or an "
+            "implemented assessment module are required.",
+        )
+        self.assertEqual(
+            t("report.no_finding", "zh-CN"),
+            "尚未形成实质性评估结论。需要补充事实，或当前场景尚需相应的评估模块支持。",
+        )
+
+    def test_evidence_trace_hierarchy_copy_is_bilingual(self) -> None:
+        self.assertEqual(
+            t("trace.rule.mapping", "en"),
+            "View condition-to-fact mapping",
+        )
+        self.assertEqual(
+            t("trace.rule.mapping", "zh-CN"),
+            "查看规则条件与事实映射",
+        )
+        self.assertEqual(
+            t("trace.rule.conditions", "en", matched=3, total=3),
+            "Conditions satisfied: 3 of 3",
+        )
+        self.assertEqual(
+            t("trace.rule.conditions", "zh-CN", matched=3, total=3),
+            "已满足条件：3/3",
+        )
+
     def test_unknown_key_is_returned_safely(self) -> None:
         self.assertEqual(t("unknown.translation.key", "zh-CN"), "unknown.translation.key")
 

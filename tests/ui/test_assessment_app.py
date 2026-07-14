@@ -20,6 +20,13 @@ APP_PATH = Path(__file__).resolve().parents[2] / "assessment_app.py"
 
 class AssessmentAppSmokeTests(unittest.TestCase):
     @staticmethod
+    def _progress_state(app: AppTest, step_id: str) -> str:
+        markup = "\n".join(item.value for item in app.markdown)
+        marker = f'data-progress-step="{step_id}" data-progress-state="'
+        start = markup.index(marker) + len(marker)
+        return markup[start : markup.index('"', start)]
+
+    @staticmethod
     def _open_recruitment_report(app: AppTest) -> AppTest:
         next(
             button
@@ -60,11 +67,11 @@ class AssessmentAppSmokeTests(unittest.TestCase):
 
         self.assertIn("运行评估", [button.label for button in app.button])
         self.assertIn(
-            "AI 系统用于什么场景？",
+            "该系统用于什么场景？",
             [select.label for select in app.selectbox],
         )
         self.assertIn(
-            "AI 系统执行什么任务？",
+            "该系统执行什么任务？",
             [area.label for area in app.text_area],
         )
 
@@ -220,6 +227,11 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         self.assertEqual(metadata["status"], "matched")
 
         next(
+            button for button in app.button if button.label == "确认模块"
+        ).click()
+        app.run(timeout=10)
+
+        next(
             button for button in app.button if button.label == "运行评估"
         ).click()
         app.run(timeout=10)
@@ -258,6 +270,246 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         self.assertEqual(metadata["original_text"], original_text)
         self.assertEqual(metadata["status"], "ambiguous")
         self.assertFalse(metadata["ambiguous_text_confirmed"])
+
+    def test_custom_loan_routes_gdpr_and_exposes_unsupported_ai_act_path(self) -> None:
+        app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
+        app.text_input[0].set_value("Automated loan decision")
+        app.text_area[0].set_value("Consumer lending relevance assessment")
+        next(button for button in app.button if button.label == "Create case").click()
+        app.run(timeout=10)
+
+        app.selectbox[0].set_value(UseDomain.ESSENTIAL_SERVICES)
+        app.text_area[0].set_value(
+            "personal financial and credit analysis; automated loan "
+            "approval/rejection; legal or significant economic effect"
+        )
+        next(button for button in app.button if button.label == "Save facts").click()
+        app.run(timeout=10)
+
+        route = app.session_state["assessment_questionnaire_route"]
+        self.assertEqual(route.suggested_modules, ["GDPR_ARTICLE22_RELEVANCE"])
+        self.assertEqual(
+            [item.path_id for item in route.unsupported_modules],
+            ["AI_ACT_ESSENTIAL_SERVICES_CREDIT_UNSUPPORTED"],
+        )
+        self.assertNotIn(
+            "employment",
+            " ".join(select.label.casefold() for select in app.selectbox),
+        )
+        warnings = "\n".join(item.value for item in app.warning)
+        self.assertIn("AI Act credit and essential-services assessment", warnings)
+        self.assertIn("not yet implemented", warnings)
+        self.assertTrue(
+            next(
+                button for button in app.button if button.label == "Run assessment"
+            ).disabled
+        )
+        self.assertEqual(self._progress_state(app, "facts"), "pending")
+
+        next(
+            button for button in app.button if button.label == "Confirm module"
+        ).click()
+        app.run(timeout=10)
+        self.assertEqual(self._progress_state(app, "facts"), "pending")
+        self.assertIn(
+            "Is an automated decision about an individual involved?",
+            [select.label for select in app.selectbox],
+        )
+        follow_up = next(
+            select
+            for select in app.selectbox
+            if select.label == "Is an automated decision about an individual involved?"
+        )
+        follow_up.set_value("yes")
+        next(
+            button
+            for button in app.button
+            if button.label == "Save follow-up answers"
+        ).click()
+        app.run(timeout=10)
+        self.assertEqual(self._progress_state(app, "facts"), "complete")
+        next(button for button in app.button if button.label == "Run assessment").click()
+        app.run(timeout=10)
+
+        report = app.session_state["assessment_report"]
+        self.assertEqual(
+            [finding.rule_id for finding in report.findings],
+            ["GDPR_ARTICLE22_RELEVANCE"],
+        )
+        self.assertEqual(
+            report.findings[0].status,
+            FindingStatus.POTENTIALLY_APPLIES,
+        )
+        self.assertEqual(self._progress_state(app, "facts"), "complete")
+        self.assertEqual(self._progress_state(app, "assessment"), "complete")
+        self.assertTrue(
+            any(
+                evidence.citation == "Article 22(1)"
+                for evidence in report.evidence
+            )
+        )
+        next(
+            button
+            for button in app.button
+            if button.label == "View full evidence trace"
+        ).click()
+        app.run(timeout=10)
+        self.assertEqual(app.session_state["assessment_view"], "evidence")
+        self.assertEqual(self._progress_state(app, "facts"), "complete")
+        self.assertEqual(self._progress_state(app, "assessment"), "complete")
+        trace_markup = "\n".join(item.value for item in app.markdown)
+        self.assertIn("GDPR Article 22 relevance test", trace_markup)
+        self.assertIn("Conditions satisfied: 3 of 3", trace_markup)
+        self.assertIn("Deterministic normalization", trace_markup)
+        self.assertIn("Dynamic questionnaire", trace_markup)
+        self.assertIn("ui-condition-map-row", trace_markup)
+        mapping_expander = next(
+            item
+            for item in app.expander
+            if item.label == "View condition-to-fact mapping"
+        )
+        self.assertFalse(mapping_expander.proto.expanded)
+        app.radio[0].set_value("zh-CN")
+        app.run(timeout=10)
+        self.assertEqual(self._progress_state(app, "facts"), "complete")
+        self.assertEqual(self._progress_state(app, "assessment"), "complete")
+
+    def test_evidence_chain_does_not_reuse_primary_decision_path_renderer(self) -> None:
+        source = APP_PATH.read_text(encoding="utf-8")
+        chain_source = source.split("def render_compliance_chain(", 1)[1].split(
+            "def render_evidence_workspace(", 1
+        )[0]
+
+        self.assertNotIn("render_decision_path(", chain_source)
+        self.assertIn("_render_condition_fact_mapping(", chain_source)
+        self.assertIn("ui-rule-application-summary", chain_source)
+
+    def test_incomplete_confirmed_module_distinguishes_facts_from_run_completion(self) -> None:
+        app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
+        app.text_input[0].set_value("Incomplete GDPR case")
+        app.text_area[0].set_value("Progress-state regression")
+        next(button for button in app.button if button.label == "Create case").click()
+        app.run(timeout=10)
+
+        manual_modules = next(
+            item
+            for item in app.multiselect
+            if item.label == "Modules available for screening"
+        )
+        manual_modules.set_value(["GDPR_ARTICLE22_RELEVANCE"])
+        next(
+            button
+            for button in app.button
+            if button.label == "Confirm selected modules"
+        ).click()
+        app.run(timeout=10)
+
+        route = app.session_state["assessment_questionnaire_route"]
+        self.assertIn(
+            "data_protection.personal_data_processed",
+            route.missing_fact_paths["GDPR_ARTICLE22_RELEVANCE"],
+        )
+        self.assertEqual(self._progress_state(app, "facts"), "pending")
+        next(button for button in app.button if button.label == "Run assessment").click()
+        app.run(timeout=10)
+
+        self.assertIsNotNone(app.session_state["assessment_report"])
+        self.assertEqual(self._progress_state(app, "facts"), "pending")
+        self.assertEqual(self._progress_state(app, "assessment"), "complete")
+
+    def test_domain_change_invalidates_employment_answers_and_stale_report(self) -> None:
+        app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
+        self._open_recruitment_report(app)
+        original_bundle = app.session_state["assessment_workflow_bundle"]
+        app.radio[0].set_value("zh-CN")
+        app.run(timeout=10)
+        next(button for button in app.button if button.label == "评估").click()
+        app.run(timeout=10)
+
+        app.selectbox[0].set_value(UseDomain.ESSENTIAL_SERVICES)
+        next(button for button in app.button if button.label == "保存事实").click()
+        app.run(timeout=10)
+
+        bundle = app.session_state["assessment_workflow_bundle"]
+        facts = bundle.case_service.get_case(
+            app.session_state["assessment_case_id"]
+        ).current_facts
+        self.assertIs(facts.use_context.domain, UseDomain.ESSENTIAL_SERVICES)
+        self.assertIsNone(facts.use_context.task)
+        self.assertIs(
+            facts.use_context.materially_influences_decision,
+            TriState.UNKNOWN,
+        )
+        self.assertNotIn(
+            "AI_ACT_HIGH_RISK_EMPLOYMENT",
+            app.session_state["assessment_confirmed_modules"],
+        )
+        self.assertIsNone(app.session_state["assessment_report"])
+        self.assertIsNone(app.session_state["selected_finding_id"])
+        self.assertEqual(app.session_state["ui_language"], "zh-CN")
+        self.assertIsNot(bundle, original_bundle)
+
+    def test_unsupported_judicial_case_does_not_activate_formal_module(self) -> None:
+        app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
+        app.text_input[0].set_value("Judicial support system")
+        app.text_area[0].set_value("Preliminary route screening")
+        next(button for button in app.button if button.label == "Create case").click()
+        app.run(timeout=10)
+
+        app.selectbox[0].set_value(UseDomain.JUSTICE_DEMOCRATIC_PROCESSES)
+        app.text_area[0].set_value("Assist judicial decision preparation")
+        next(button for button in app.button if button.label == "Save facts").click()
+        app.run(timeout=10)
+
+        route = app.session_state["assessment_questionnaire_route"]
+        self.assertEqual(route.suggested_modules, [])
+        self.assertEqual(
+            [item.path_id for item in route.unsupported_modules],
+            ["AI_ACT_JUDICIAL_ROUTE_UNSUPPORTED"],
+        )
+        self.assertEqual(app.session_state["assessment_confirmed_modules"], [])
+        self.assertNotIn(
+            "employment",
+            " ".join(select.label.casefold() for select in app.selectbox),
+        )
+        run_button = next(
+            button for button in app.button if button.label == "Run assessment"
+        )
+        self.assertTrue(run_button.disabled)
+
+    def test_connected_product_change_invalidates_only_data_act_route_state(self) -> None:
+        app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
+        next(
+            button for button in app.button if button.label == "Open industrial demo"
+        ).click()
+        app.run(timeout=10)
+        next(button for button in app.button if button.label == "Run assessment").click()
+        app.run(timeout=10)
+        self.assertIsNotNone(app.session_state["assessment_report"])
+        next(button for button in app.button if button.label == "Assessment").click()
+        app.run(timeout=10)
+
+        connected = next(
+            select
+            for select in app.selectbox
+            if select.label == "Is a connected product involved?"
+        )
+        connected.set_value(TriState.NO)
+        next(button for button in app.button if button.label == "Save facts").click()
+        app.run(timeout=10)
+
+        bundle = app.session_state["assessment_workflow_bundle"]
+        facts = bundle.case_service.get_case(
+            app.session_state["assessment_case_id"]
+        ).current_facts
+        self.assertIs(facts.data_act.connected_product, TriState.NO)
+        self.assertIs(facts.data_act.related_service, TriState.UNKNOWN)
+        self.assertIs(facts.data_act.data_generated, TriState.UNKNOWN)
+        self.assertNotIn(
+            "EU_DATA_ACT_RELEVANCE",
+            app.session_state["assessment_confirmed_modules"],
+        )
+        self.assertIsNone(app.session_state["assessment_report"])
 
     def test_recruitment_flow_opens_results_and_evidence_trace(self) -> None:
         app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
@@ -324,6 +576,14 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         original_evidence_ids = [
             evidence.evidence_id for evidence in original_report.evidence
         ]
+        original_modules = list(
+            app.session_state["assessment_confirmed_modules"]
+        )
+        original_provenance = [
+            item.to_dict()
+            for item in app.session_state["assessment_fact_provenance"]
+        ]
+        original_route = app.session_state["assessment_questionnaire_route"].to_dict()
 
         app.radio[0].set_value("zh-CN")
         app.run(timeout=10)
@@ -344,6 +604,21 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         self.assertEqual(
             app.session_state["selected_finding_id"],
             original_finding.finding_id,
+        )
+        self.assertEqual(
+            app.session_state["assessment_confirmed_modules"],
+            original_modules,
+        )
+        self.assertEqual(
+            [
+                item.to_dict()
+                for item in app.session_state["assessment_fact_provenance"]
+            ],
+            original_provenance,
+        )
+        self.assertEqual(
+            app.session_state["assessment_questionnaire_route"].to_dict(),
+            original_route,
         )
         translated_report = app.session_state["assessment_report"]
         self.assertEqual(translated_report.report_id, original_report_id)
@@ -519,11 +794,7 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         }
         self.assertEqual(
             set(findings_by_rule),
-            {
-                "AI_ACT_HIGH_RISK_EMPLOYMENT",
-                "GDPR_ARTICLE22_RELEVANCE",
-                "EU_DATA_ACT_RELEVANCE",
-            },
+            {"EU_DATA_ACT_RELEVANCE"},
         )
         data_act_finding = findings_by_rule["EU_DATA_ACT_RELEVANCE"]
         self.assertEqual(
@@ -538,11 +809,6 @@ class AssessmentAppSmokeTests(unittest.TestCase):
             data_act_finding.reason_codes,
             ["CONNECTED_PRODUCT", "RELATED_SERVICE", "DATA_GENERATED"],
         )
-        self.assertEqual(
-            findings_by_rule["AI_ACT_HIGH_RISK_EMPLOYMENT"].status,
-            FindingStatus.DOES_NOT_APPLY,
-        )
-
         evidence_by_id = {
             evidence.evidence_id: evidence for evidence in report.evidence
         }
