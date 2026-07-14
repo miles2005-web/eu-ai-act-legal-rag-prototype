@@ -34,6 +34,22 @@ class AssessmentRule(ABC):
 
         raise NotImplementedError
 
+    def required_fact_paths_for(
+        self,
+        facts: AssessmentFacts,
+    ) -> tuple[str, ...]:
+        """Return fact paths required for the current fact snapshot.
+
+        Most rules have unconditional requirements and inherit this default.
+        Rules with transparent conditional predicates may override the method
+        while retaining ``required_fact_paths`` as their complete metadata
+        superset.
+        """
+
+        if not isinstance(facts, AssessmentFacts):
+            raise TypeError("facts must be an AssessmentFacts instance")
+        return self.required_fact_paths
+
     def validate_definition(self) -> None:
         """Validate metadata required for safe registration and lookup."""
 

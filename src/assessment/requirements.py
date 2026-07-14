@@ -60,8 +60,23 @@ class FactRequirementValidator:
         if not isinstance(facts, AssessmentFacts):
             raise TypeError("facts must be an AssessmentFacts instance")
 
+        required_fact_paths = rule.required_fact_paths_for(facts)
+        if not isinstance(required_fact_paths, tuple):
+            raise TypeError("required_fact_paths_for must return a tuple")
+        if any(
+            not isinstance(path, str) or not path.strip()
+            for path in required_fact_paths
+        ):
+            raise ValueError(
+                "required_fact_paths_for returned an invalid fact path"
+            )
+        if len(set(required_fact_paths)) != len(required_fact_paths):
+            raise ValueError(
+                "required_fact_paths_for returned duplicate fact paths"
+            )
+
         missing_facts: list[MissingFact] = []
-        for fact_path in rule.required_fact_paths:
+        for fact_path in required_fact_paths:
             value = self._resolve_path(facts, fact_path)
             reason = self._missing_reason(value)
             if reason is not None:
@@ -70,7 +85,7 @@ class FactRequirementValidator:
         return RuleRequirementResult(
             rule_id=rule.rule_id,
             rule_version=rule.version,
-            required_fact_paths=list(rule.required_fact_paths),
+            required_fact_paths=list(required_fact_paths),
             missing_facts=missing_facts,
             framework=rule.framework,
         )
