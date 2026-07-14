@@ -173,6 +173,65 @@ class HighRiskFacts(SerializableModel):
 
 
 @dataclass(slots=True)
+class ProductRegulationFacts(SerializableModel):
+    """Facts reserved for the AI Act product-safety classification route."""
+
+    ai_is_product: TriState = TriState.UNKNOWN
+    ai_is_safety_component: TriState = TriState.UNKNOWN
+    product_type: str | None = None
+    annex_i_instrument: str | None = None
+    annex_i_instrument_confirmed: TriState = TriState.UNKNOWN
+    third_party_conformity_required: TriState = TriState.UNKNOWN
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> ProductRegulationFacts:
+        """Deserialize the isolated namespace using existing fact conventions."""
+
+        if not isinstance(payload, dict):
+            raise TypeError("product_regulation facts must be an object")
+        allowed_fields = {
+            "ai_is_product",
+            "ai_is_safety_component",
+            "product_type",
+            "annex_i_instrument",
+            "annex_i_instrument_confirmed",
+            "third_party_conformity_required",
+        }
+        unknown_fields = set(payload).difference(allowed_fields)
+        if unknown_fields:
+            raise ValueError(
+                "unknown product_regulation fact fields: "
+                + ", ".join(sorted(unknown_fields))
+            )
+
+        def tri_state(field_name: str) -> TriState:
+            value = payload.get(field_name, TriState.UNKNOWN.value)
+            return value if isinstance(value, TriState) else TriState(str(value))
+
+        def optional_string(field_name: str) -> str | None:
+            value = payload.get(field_name)
+            if value is None:
+                return None
+            if not isinstance(value, str):
+                raise TypeError(f"{field_name} must be a string or null")
+            normalized = value.strip()
+            return normalized or None
+
+        return cls(
+            ai_is_product=tri_state("ai_is_product"),
+            ai_is_safety_component=tri_state("ai_is_safety_component"),
+            product_type=optional_string("product_type"),
+            annex_i_instrument=optional_string("annex_i_instrument"),
+            annex_i_instrument_confirmed=tri_state(
+                "annex_i_instrument_confirmed"
+            ),
+            third_party_conformity_required=tri_state(
+                "third_party_conformity_required"
+            ),
+        )
+
+
+@dataclass(slots=True)
 class DataProtectionFacts(SerializableModel):
     """Facts reserved for cross-regulation data-protection assessments."""
 
@@ -212,6 +271,9 @@ class AssessmentFacts(SerializableModel):
     use_context: UseContextFacts = field(default_factory=UseContextFacts)
     practices: PracticesFacts = field(default_factory=PracticesFacts)
     high_risk: HighRiskFacts = field(default_factory=HighRiskFacts)
+    product_regulation: ProductRegulationFacts = field(
+        default_factory=ProductRegulationFacts
+    )
     data_protection: DataProtectionFacts = field(
         default_factory=DataProtectionFacts
     )

@@ -97,7 +97,12 @@ class IndustrialAIFixtureTests(unittest.TestCase):
             model_field.name
             for model_field in fields(AssessmentFacts)
         }
-        self.assertEqual(set(payload["facts"]), expected_sections)
+        fixture_sections = set(payload["facts"])
+        self.assertTrue(fixture_sections.issubset(expected_sections))
+        self.assertEqual(
+            expected_sections.difference(fixture_sections),
+            {"product_regulation"},
+        )
 
     def test_expected_outcome_fields_are_stable(self) -> None:
         expected = self._load_fixture()["expected_assessment"]
@@ -131,6 +136,11 @@ class IndustrialAIFixtureTests(unittest.TestCase):
             facts.fact_metadata["data_act.connected_product"].source,
             FactSource.QUESTIONNAIRE,
         )
+        self.assertIs(
+            facts.product_regulation.ai_is_product,
+            TriState.UNKNOWN,
+        )
+        self.assertIsNone(facts.product_regulation.annex_i_instrument)
         self.assertEqual(len(result.findings), 1)
         finding = result.findings[0]
         self.assertEqual(finding.rule_id, "EU_DATA_ACT_RELEVANCE")

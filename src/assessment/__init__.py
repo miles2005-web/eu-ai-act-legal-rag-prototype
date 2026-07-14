@@ -20,7 +20,7 @@ from src.assessment.evidence import (
     VectorStoreFormatError,
     VectorStoreJSONEvidenceRetriever,
 )
-from src.assessment.facts import AssessmentFacts
+from src.assessment.facts import AssessmentFacts, ProductRegulationFacts
 from src.assessment.findings import Finding, FindingCategory, FindingStatus, LegalBasis
 from src.assessment.frameworks import RegulatoryFramework
 from src.assessment.models import AssessmentRun, AssessmentRunStatus, TriState
@@ -35,6 +35,19 @@ from src.assessment.questionnaire import (
     QuestionNotFoundError,
     QuestionOption,
     QuestionRegistry,
+)
+from src.assessment.product_regulation import (
+    AmbiguousAnnexIInstrumentAliasError,
+    AnnexIInstrument,
+    AnnexIInstrumentAliasNotFoundError,
+    AnnexIInstrumentCatalog,
+    AnnexIInstrumentCatalogError,
+    AnnexIInstrumentNotFoundError,
+    AnnexIInstrumentType,
+    AnnexISection,
+    InvalidProductRegulationFactsError,
+    load_annex_i_instrument_catalog,
+    validate_product_regulation_facts,
 )
 from src.assessment.requirements import (
     FactRequirementValidator,
@@ -70,6 +83,14 @@ __all__ = [
     "AssessmentRunStatus",
     "AssessmentWorkflowService",
     "AnswerType",
+    "AmbiguousAnnexIInstrumentAliasError",
+    "AnnexIInstrument",
+    "AnnexIInstrumentAliasNotFoundError",
+    "AnnexIInstrumentCatalog",
+    "AnnexIInstrumentCatalogError",
+    "AnnexIInstrumentNotFoundError",
+    "AnnexIInstrumentType",
+    "AnnexISection",
     "AuthorityLevel",
     "DuplicateEvidenceError",
     "DuplicateAssessmentCaseError",
@@ -86,6 +107,7 @@ __all__ = [
     "FrameworkFindings",
     "InMemoryEvidenceService",
     "InvalidQuestionFactPathError",
+    "InvalidProductRegulationFactsError",
     "LegalEvidenceRetriever",
     "LegalBasis",
     "MissingFact",
@@ -97,6 +119,7 @@ __all__ = [
     "QuestionNotFoundError",
     "QuestionOption",
     "QuestionRegistry",
+    "ProductRegulationFacts",
     "RegulatoryFramework",
     "ReportBuildError",
     "ReportBuilder",
@@ -107,4 +130,6 @@ __all__ = [
     "TriState",
     "VectorStoreFormatError",
     "VectorStoreJSONEvidenceRetriever",
+    "load_annex_i_instrument_catalog",
+    "validate_product_regulation_facts",
 ]

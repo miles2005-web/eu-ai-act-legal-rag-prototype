@@ -9,9 +9,13 @@ import unittest
 from scripts.run_demo_assessment import build_assessment_facts, load_fixture
 from src.assessment import (
     AssessmentEngine,
+    AnnexIInstrumentNotFoundError,
     FactRequirementValidator,
     FindingStatus,
+    ProductRegulationFacts,
     TriState,
+    load_annex_i_instrument_catalog,
+    validate_product_regulation_facts,
 )
 from src.assessment.facts import FactMetadata, FactSource
 from src.assessment.rules import (
@@ -158,6 +162,120 @@ class DataActFactsTests(unittest.TestCase):
             FindingStatus.POTENTIALLY_APPLIES,
         )
         self.assertEqual(result.missing_fact_requirements, [])
+
+
+class ProductRegulationFactsTests(unittest.TestCase):
+    def test_unknown_values_are_the_backward_compatible_default(self) -> None:
+        facts = build_assessment_facts(load_fixture()["facts"])
+
+        self.assertIs(facts.product_regulation.ai_is_product, TriState.UNKNOWN)
+        self.assertIs(
+            facts.product_regulation.ai_is_safety_component,
+            TriState.UNKNOWN,
+        )
+        self.assertIsNone(facts.product_regulation.product_type)
+        self.assertIsNone(facts.product_regulation.annex_i_instrument)
+        self.assertIs(
+            facts.product_regulation.annex_i_instrument_confirmed,
+            TriState.UNKNOWN,
+        )
+        self.assertIs(
+            facts.product_regulation.third_party_conformity_required,
+            TriState.UNKNOWN,
+        )
+
+    def test_product_regulation_facts_round_trip_deterministically(self) -> None:
+        facts = ProductRegulationFacts(
+            ai_is_product=TriState.NO,
+            ai_is_safety_component=TriState.YES,
+            product_type="industrial_machinery",
+            annex_i_instrument=(
+                "ANNEX_I_A_01_MACHINERY_DIRECTIVE_2006_42_EC"
+            ),
+            annex_i_instrument_confirmed=TriState.YES,
+            third_party_conformity_required=TriState.UNKNOWN,
+        )
+
+        payload = facts.to_dict()
+        restored = ProductRegulationFacts.from_dict(payload)
+
+        self.assertEqual(restored, facts)
+        self.assertEqual(restored.to_dict(), payload)
+        json.dumps(payload)
+
+    def test_product_regulation_fact_uses_existing_provenance_mechanism(
+        self,
+    ) -> None:
+        facts = build_assessment_facts(load_fixture()["facts"])
+        recorded_at = datetime(2026, 7, 14, 9, 0, tzinfo=timezone.utc)
+        facts.product_regulation.ai_is_safety_component = TriState.YES
+        facts.fact_metadata[
+            "product_regulation.ai_is_safety_component"
+        ] = FactMetadata(
+            source=FactSource.QUESTIONNAIRE,
+            question_id="AI-ACT-6-1-AI-SAFETY-COMPONENT",
+            recorded_at=recorded_at,
+        )
+
+        payload = facts.to_dict()
+
+        self.assertEqual(
+            payload["product_regulation"]["ai_is_safety_component"],
+            "yes",
+        )
+        self.assertEqual(
+            payload["fact_metadata"][
+                "product_regulation.ai_is_safety_component"
+            ],
+            {
+                "source": "questionnaire",
+                "question_id": "AI-ACT-6-1-AI-SAFETY-COMPONENT",
+                "recorded_at": recorded_at.isoformat(),
+            },
+        )
+
+    def test_empty_legacy_namespace_deserializes_to_safe_defaults(self) -> None:
+        facts = ProductRegulationFacts.from_dict({})
+
+        self.assertEqual(facts, ProductRegulationFacts())
+
+    def test_selecting_instrument_does_not_imply_confirmation_or_conformity(
+        self,
+    ) -> None:
+        facts = ProductRegulationFacts(
+            annex_i_instrument=(
+                "ANNEX_I_A_01_MACHINERY_DIRECTIVE_2006_42_EC"
+            )
+        )
+        before = facts.to_dict()
+
+        instrument = validate_product_regulation_facts(
+            facts,
+            catalog=load_annex_i_instrument_catalog(),
+        )
+
+        self.assertEqual(
+            instrument.instrument_id,
+            facts.annex_i_instrument,
+        )
+        self.assertIs(
+            facts.annex_i_instrument_confirmed,
+            TriState.UNKNOWN,
+        )
+        self.assertIs(
+            facts.third_party_conformity_required,
+            TriState.UNKNOWN,
+        )
+        self.assertEqual(facts.to_dict(), before)
+        self.assertFalse(hasattr(facts, "article_6_1_applies"))
+
+    def test_invalid_selected_instrument_id_is_rejected(self) -> None:
+        facts = ProductRegulationFacts(
+            annex_i_instrument="NOT_A_CATALOGUE_ID"
+        )
+
+        with self.assertRaises(AnnexIInstrumentNotFoundError):
+            validate_product_regulation_facts(facts)
 
 
 if __name__ == "__main__":
