@@ -10,6 +10,10 @@ from src.ai_act_product_safety_corpus import (
     DEFAULT_RUNTIME_EVIDENCE_PACK_PATH,
     load_ai_act_product_safety_runtime_pack,
 )
+from src.data_act_corpus import (
+    DEFAULT_RUNTIME_EVIDENCE_PACK_PATH as DEFAULT_DATA_ACT_RUNTIME_EVIDENCE_PACK_PATH,
+    load_data_act_relevance_runtime_pack,
+)
 from src.assessment.case import AssessmentCaseService
 from src.assessment.engine import AssessmentEngine
 from src.assessment.evidence import (
@@ -30,14 +34,11 @@ from src.assessment.workflow import AssessmentWorkflowService
 
 
 DEFAULT_VECTOR_STORE_PATH = Path(__file__).resolve().parents[3] / "vector_store.json"
-DEFAULT_DATA_ACT_CANDIDATE_PATH = (
-    Path(__file__).resolve().parents[3]
-    / "corpus_builds"
-    / "EU_DATA_ACT"
-    / "data_act_candidate.json"
-)
 DEFAULT_AI_ACT_PRODUCT_SAFETY_EVIDENCE_PACK_PATH = (
     DEFAULT_RUNTIME_EVIDENCE_PACK_PATH
+)
+DEFAULT_DATA_ACT_RELEVANCE_EVIDENCE_PACK_PATH = (
+    DEFAULT_DATA_ACT_RUNTIME_EVIDENCE_PACK_PATH
 )
 
 
@@ -83,19 +84,17 @@ def create_assessment_workflow(
     )
     engine = AssessmentEngine(rule_registry)
     if candidate_store_paths is None:
-        # Validate the committed embedding-free pack before exposing it to the
+        # Validate committed embedding-free packs before exposing them to the
         # shared retriever. Runtime binding must never rely on ignored builds.
         load_ai_act_product_safety_runtime_pack(
             DEFAULT_AI_ACT_PRODUCT_SAFETY_EVIDENCE_PACK_PATH
         )
-        candidate_paths = tuple(
-            path
-            for path in (
-                DEFAULT_DATA_ACT_CANDIDATE_PATH,
-                DEFAULT_AI_ACT_PRODUCT_SAFETY_EVIDENCE_PACK_PATH,
-            )
-            if path == DEFAULT_AI_ACT_PRODUCT_SAFETY_EVIDENCE_PACK_PATH
-            or path.is_file()
+        load_data_act_relevance_runtime_pack(
+            DEFAULT_DATA_ACT_RELEVANCE_EVIDENCE_PACK_PATH
+        )
+        candidate_paths = (
+            DEFAULT_DATA_ACT_RELEVANCE_EVIDENCE_PACK_PATH,
+            DEFAULT_AI_ACT_PRODUCT_SAFETY_EVIDENCE_PACK_PATH,
         )
     else:
         if isinstance(candidate_store_paths, (str, bytes, Path)):

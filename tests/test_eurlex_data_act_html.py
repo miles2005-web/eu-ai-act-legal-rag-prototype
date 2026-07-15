@@ -9,6 +9,7 @@ import unittest
 from src.assessment.evidence import MultiCorpusLegalEvidenceRetriever
 from src.data_act_corpus import (
     build_data_act_candidate_records,
+    compare_data_act_candidate_to_runtime_pack,
     write_data_act_candidate_corpus,
 )
 from src.eurlex_html import (
@@ -52,6 +53,14 @@ EURLEX_SAMPLE = """<!DOCTYPE html>
     </div>
   </div>
 </body></html>"""
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+OFFICIAL_SOURCE = (
+    PROJECT_ROOT
+    / "corpus_sources"
+    / "EU_DATA_ACT"
+    / "Regulation_2023_2854.html"
+)
 
 
 class EurLexDataActHTMLTests(unittest.TestCase):
@@ -139,6 +148,11 @@ class EurLexDataActHTMLTests(unittest.TestCase):
             "Regulation (EU) 2023/2854",
         )
         self.assertTrue(evidence[0].evidence_id.startswith("evidence:v2:"))
+
+    @unittest.skipUnless(OFFICIAL_SOURCE.is_file(), "official source is local-only")
+    def test_official_source_matches_committed_runtime_pack(self) -> None:
+        records = build_data_act_candidate_records(OFFICIAL_SOURCE)
+        compare_data_act_candidate_to_runtime_pack(records)
 
 
 if __name__ == "__main__":
