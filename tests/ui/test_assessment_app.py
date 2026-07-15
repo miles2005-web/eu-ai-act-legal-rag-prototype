@@ -161,6 +161,18 @@ class AssessmentAppSmokeTests(unittest.TestCase):
             select
             for select in app.selectbox
             if select.label.startswith("Is the AI system itself")
+        ).set_value("no")
+        next(
+            button
+            for button in app.button
+            if button.label == "Save follow-up answers"
+        ).click()
+        app.run(timeout=10)
+
+        next(
+            select
+            for select in app.selectbox
+            if select.label.startswith("Is the AI system intended")
         ).set_value("yes")
         next(
             button
@@ -240,22 +252,38 @@ class AssessmentAppSmokeTests(unittest.TestCase):
             if item.rule_id == AI_ACT_PRODUCT_SAFETY_RULE_ID
         )
         self.assertIs(finding.status, FindingStatus.POTENTIALLY_APPLIES)
-        self.assertEqual(report.evidence, [])
-        self.assertEqual(report.evidence_bindings, [])
-        self.assertTrue(
-            any(
-                "尚未为该规则绑定原子官方原文证据" in item.value
-                for item in app.info
-            )
+        self.assertEqual(
+            [item.citation for item in report.evidence],
+            [
+                "Article 3(14)",
+                "Article 6(1)(a)",
+                "Article 6(1)(b)",
+                "Annex I, Section A, point 1",
+            ],
+        )
+        self.assertEqual(len(report.evidence_bindings), 1)
+        self.assertFalse(
+            any("尚未为该规则绑定原子官方原文证据" in item.value for item in app.info)
         )
         next(button for button in app.button if button.label == "证据链").click()
         app.run(timeout=10)
         self.assertEqual(app.session_state["assessment_view"], "evidence")
+        self.assertFalse(
+            any("尚未为该规则绑定原子官方原文证据" in item.value for item in app.info)
+        )
+        self.assertEqual(
+            len(
+                [
+                    item
+                    for item in app.expander
+                    if item.label.startswith("官方原文")
+                ]
+            ),
+            4,
+        )
+        code_values = {item.value for item in app.code}
         self.assertTrue(
-            any(
-                "尚未为该规则绑定原子官方原文证据" in item.value
-                for item in app.info
-            )
+            {item.evidence_id for item in report.evidence}.issubset(code_values)
         )
 
     def test_explicit_unknown_is_recorded_without_repeating_question(self) -> None:

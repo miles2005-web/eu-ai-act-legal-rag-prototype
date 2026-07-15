@@ -262,6 +262,54 @@ class MultiCorpusEvidenceRetrieverTests(unittest.TestCase):
                 [],
             )
 
+    def test_atomic_ai_act_record_precedes_broad_legacy_and_fails_closed(self) -> None:
+        atomic = _v2_record(
+            instrument_id="EU_AI_ACT",
+            version="Regulation (EU) 2024/1689",
+            citation="Annex I, Section A, point 1",
+            excerpt="Official atomic machinery entry.",
+            article_number="",
+        )
+        atomic["metadata"].update(
+            {"annex_ref": "I", "annex_section": "A", "annex_point": 1}
+        )
+        legacy = {
+            "id": "legacy-annex-i",
+            "document": "Broad legacy Annex I text.",
+            "metadata": {
+                "source": "AI Act Annexes I-XIII.txt",
+                "canonical_citation": "Annex I",
+                "annex_ref": "I",
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            existing = Path(directory) / "existing.json"
+            candidate = Path(directory) / "ai-act-candidate.json"
+            self._write(existing, [legacy])
+            self._write(candidate, [atomic])
+            retriever = MultiCorpusLegalEvidenceRetriever.from_store_paths(
+                existing,
+                [candidate],
+            )
+
+            exact = retriever.retrieve(
+                "EU_AI_ACT",
+                "annex i section a point 1",
+            )
+            unknown = retriever.retrieve(
+                "EU_AI_ACT",
+                "Annex I, Section A, point 21",
+            )
+            malformed = retriever.retrieve(
+                "EU_AI_ACT",
+                "Annex I, Section A, point nearby 1",
+            )
+
+        self.assertEqual(len(exact), 1)
+        self.assertEqual(exact[0].evidence_id, atomic["metadata"]["stable_evidence_id"])
+        self.assertEqual(unknown, [])
+        self.assertEqual(malformed, [])
+
 
 if __name__ == "__main__":
     unittest.main()

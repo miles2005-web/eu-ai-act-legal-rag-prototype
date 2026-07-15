@@ -16,7 +16,11 @@ from src.assessment import (
     ReportBuilder,
     TriState,
 )
-from src.assessment.evidence import expand_citation_reference
+from src.assessment.evidence import (
+    expand_citation_reference,
+    is_strict_atomic_citation,
+    normalize_atomic_citation,
+)
 from src.assessment.rules import EUDataActRelevanceRule, RuleRegistry
 
 
@@ -36,6 +40,25 @@ class CitationRangeExpansionTests(unittest.TestCase):
             expand_citation_reference("Article 22(1)"),
             ("Article 22(1)",),
         )
+
+    def test_atomic_ai_act_formatting_variants_normalize_exactly(self) -> None:
+        self.assertEqual(
+            normalize_atomic_citation("Art. 6 ( 1 ) ( A )"),
+            "Article 6(1)(a)",
+        )
+        self.assertEqual(
+            normalize_atomic_citation("annex i section a point 1"),
+            "Annex I, Section A, point 1",
+        )
+        self.assertTrue(is_strict_atomic_citation("Article 3(14)"))
+        self.assertTrue(
+            is_strict_atomic_citation("Annex I, Section B, point 20")
+        )
+
+    def test_malformed_references_are_not_fuzzily_rewritten(self) -> None:
+        malformed = "Annex I, Section A, point nearby 1"
+        self.assertEqual(normalize_atomic_citation(malformed), malformed)
+        self.assertFalse(is_strict_atomic_citation(malformed))
 
 
 class DataActRangeBindingTests(unittest.TestCase):

@@ -36,6 +36,8 @@ class StructuredCitation:
     point_label: str | None = None
     recital_ref: str | None = None
     annex_ref: str | None = None
+    annex_section: str | None = None
+    annex_point: int | None = None
 
 
 _ARTICLE_CITATION = re.compile(
@@ -53,6 +55,11 @@ _RECITAL_CITATION = re.compile(
 )
 _ANNEX_CITATION = re.compile(
     r"^Annex\s+(?P<annex>[ivxlcdm]+|\d+[a-z]?)$",
+    re.IGNORECASE,
+)
+_ANNEX_POINT_CITATION = re.compile(
+    r"^Annex\s+(?P<annex>[ivxlcdm]+|\d+[a-z]?)\s*,\s*"
+    r"Section\s+(?P<section>[a-z])\s*,\s*point\s+(?P<point>\d+)\s*$",
     re.IGNORECASE,
 )
 
@@ -101,6 +108,22 @@ def parse_structured_citation(citation: str) -> StructuredCitation:
             recital_ref=recital_ref,
         )
 
+    annex_point_match = _ANNEX_POINT_CITATION.fullmatch(normalized_input)
+    if annex_point_match:
+        annex_ref = annex_point_match.group("annex").upper()
+        annex_section = annex_point_match.group("section").upper()
+        annex_point = int(annex_point_match.group("point"))
+        return StructuredCitation(
+            kind=CitationKind.ANNEX,
+            canonical_citation=(
+                f"Annex {annex_ref}, Section {annex_section}, "
+                f"point {annex_point}"
+            ),
+            annex_ref=annex_ref,
+            annex_section=annex_section,
+            annex_point=annex_point,
+        )
+
     annex_match = _ANNEX_CITATION.fullmatch(normalized_input)
     if annex_match:
         annex_ref = annex_match.group("annex").upper()
@@ -112,7 +135,8 @@ def parse_structured_citation(citation: str) -> StructuredCitation:
 
     raise ValueError(
         "unsupported citation; expected Article N, Article N(P), "
-        "Article N(P)(a), Article N(a), Recital N, or Annex N"
+        "Article N(P)(a), Article N(a), Recital N, Annex N, or "
+        "Annex N, Section X, point P"
     )
 
 
@@ -168,7 +192,9 @@ def enrich_chunks_metadata_v2(
     ]
 
 
-def _citation_metadata(citation: StructuredCitation) -> dict[str, str | None]:
+def _citation_metadata(
+    citation: StructuredCitation,
+) -> dict[str, str | int | None]:
     return {
         "canonical_citation": citation.canonical_citation,
         "article_number": citation.article_number,
@@ -176,6 +202,8 @@ def _citation_metadata(citation: StructuredCitation) -> dict[str, str | None]:
         "point_label": citation.point_label,
         "recital_ref": citation.recital_ref,
         "annex_ref": citation.annex_ref,
+        "annex_section": citation.annex_section,
+        "annex_point": citation.annex_point,
     }
 
 

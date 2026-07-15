@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from collections.abc import Iterable
 from pathlib import Path
 
+from src.ai_act_product_safety_corpus import (
+    DEFAULT_RUNTIME_EVIDENCE_PACK_PATH,
+    load_ai_act_product_safety_runtime_pack,
+)
 from src.assessment.case import AssessmentCaseService
 from src.assessment.engine import AssessmentEngine
 from src.assessment.evidence import (
@@ -14,6 +18,7 @@ from src.assessment.evidence import (
     MultiCorpusLegalEvidenceRetriever,
 )
 from src.assessment.report import ReportBuilder
+from src.assessment.product_regulation import load_annex_i_instrument_catalog
 from src.assessment.rules import (
     AIActHighRiskEmploymentRule,
     AIActHighRiskProductSafetyRule,
@@ -31,9 +36,8 @@ DEFAULT_DATA_ACT_CANDIDATE_PATH = (
     / "EU_DATA_ACT"
     / "data_act_candidate.json"
 )
-
-_RULES_WITH_PENDING_EVIDENCE_BINDING = frozenset(
-    {"AI_ACT_HIGH_RISK_PRODUCT_SAFETY"}
+DEFAULT_AI_ACT_PRODUCT_SAFETY_EVIDENCE_PACK_PATH = (
+    DEFAULT_RUNTIME_EVIDENCE_PACK_PATH
 )
 
 
@@ -79,10 +83,19 @@ def create_assessment_workflow(
     )
     engine = AssessmentEngine(rule_registry)
     if candidate_store_paths is None:
-        candidate_paths = (
-            (DEFAULT_DATA_ACT_CANDIDATE_PATH,)
-            if DEFAULT_DATA_ACT_CANDIDATE_PATH.is_file()
-            else ()
+        # Validate the committed embedding-free pack before exposing it to the
+        # shared retriever. Runtime binding must never rely on ignored builds.
+        load_ai_act_product_safety_runtime_pack(
+            DEFAULT_AI_ACT_PRODUCT_SAFETY_EVIDENCE_PACK_PATH
+        )
+        candidate_paths = tuple(
+            path
+            for path in (
+                DEFAULT_DATA_ACT_CANDIDATE_PATH,
+                DEFAULT_AI_ACT_PRODUCT_SAFETY_EVIDENCE_PACK_PATH,
+            )
+            if path == DEFAULT_AI_ACT_PRODUCT_SAFETY_EVIDENCE_PACK_PATH
+            or path.is_file()
         )
     else:
         if isinstance(candidate_store_paths, (str, bytes, Path)):
@@ -97,12 +110,21 @@ def create_assessment_workflow(
 
     evidence_by_id = {}
     for rule in rule_registry:
-        if rule.rule_id in _RULES_WITH_PENDING_EVIDENCE_BINDING:
-            continue
-        for legal_basis in rule.legal_basis:
+        legal_references = [
+            (basis.instrument, basis.citation) for basis in rule.legal_basis
+        ]
+        if rule.rule_id == "AI_ACT_HIGH_RISK_PRODUCT_SAFETY":
+            legal_references.extend(
+                [("EU_AI_ACT", "Article 3(14)")]
+                + [
+                    ("EU_AI_ACT", instrument.canonical_reference)
+                    for instrument in load_annex_i_instrument_catalog().all()
+                ]
+            )
+        for legal_source, citation in legal_references:
             for evidence in evidence_retriever.retrieve(
-                legal_basis.instrument,
-                legal_basis.citation,
+                legal_source,
+                citation,
                 limit=evidence_limit,
             ):
                 evidence_by_id.setdefault(evidence.evidence_id, evidence)

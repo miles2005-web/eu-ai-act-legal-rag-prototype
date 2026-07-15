@@ -15,6 +15,7 @@ from scripts.run_demo_assessment import (
     load_fixture,
 )
 from src.assessment.demo import AssessmentWorkflowBundle, create_assessment_workflow
+from src.assessment.evidence import normalized_excerpt_hash
 from src.assessment.facts import AffectedPerson, UseDomain
 from src.assessment.findings import FindingStatus
 from src.assessment.frameworks import RegulatoryFramework
@@ -2634,8 +2635,16 @@ def render_compliance_chain(
         st.caption(t("evidence.all_ids", language))
         for evidence in bound_evidence:
             st.code(evidence.evidence_id, language=None)
+            st.caption(t("evidence.excerpt_hash", language))
+            st.code(normalized_excerpt_hash(evidence.excerpt), language=None)
             st.caption(t("evidence.raw_source", language))
             st.code(evidence.legal_source, language=None)
+            st.caption(t("evidence.source_version", language))
+            st.code(
+                evidence.document_version
+                or t("evidence.not_recorded", language),
+                language=None,
+            )
 
 
 def render_evidence_workspace(

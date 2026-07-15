@@ -7,7 +7,10 @@ from collections.abc import Iterable
 from copy import deepcopy
 from dataclasses import dataclass, field
 
-from src.assessment.evidence.citations import expand_citation_reference
+from src.assessment.evidence.citations import (
+    expand_citation_reference,
+    normalize_atomic_citation,
+)
 from src.assessment.evidence.models import Evidence, FindingEvidenceBinding
 from src.assessment.findings import Finding, LegalBasis
 from src.assessment.models import SerializableModel
@@ -120,4 +123,7 @@ class InMemoryEvidenceService(EvidenceService):
 
     @staticmethod
     def _evidence_key(legal_source: str, citation: str) -> tuple[str, str]:
-        return legal_source.strip().casefold(), citation.strip().casefold()
+        return (
+            legal_source.strip().casefold(),
+            normalize_atomic_citation(citation).casefold(),
+        )

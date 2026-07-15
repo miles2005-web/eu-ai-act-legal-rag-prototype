@@ -19,7 +19,11 @@ from src.assessment.evidence.corpus_metadata import (
     CORPUS_METADATA_SCHEMA_VERSION,
     CorpusMetadataV2,
 )
-from src.assessment.evidence.citations import expand_citation_reference
+from src.assessment.evidence.citations import (
+    expand_citation_reference,
+    is_strict_atomic_citation,
+    normalize_atomic_citation,
+)
 from src.assessment.evidence.models import AuthorityLevel, Evidence
 
 
@@ -105,21 +109,39 @@ class MultiCorpusLegalEvidenceRetriever(LegalEvidenceRetriever):
         evidence: list[Evidence] = []
         seen_ids: set[str] = set()
         for resolved_citation in expand_citation_reference(citation):
+            candidates: list[Evidence] = []
+            candidate_ids: set[str] = set()
             for retriever in self._retrievers:
-                remaining = limit - len(evidence)
-                if remaining <= 0:
-                    break
                 for item in retriever.retrieve(
                     legal_source,
                     resolved_citation,
-                    limit=remaining,
+                    limit=limit,
                 ):
-                    if item.evidence_id in seen_ids:
-                        continue
-                    evidence.append(item)
-                    seen_ids.add(item.evidence_id)
-                    if len(evidence) == limit:
-                        break
+                    if item.evidence_id not in candidate_ids:
+                        candidates.append(item)
+                        candidate_ids.add(item.evidence_id)
+
+            # Exact metadata-v2 records supersede broad legacy chunks for the
+            # same atomic proposition. This prevents duplicate or less precise
+            # evidence without changing legacy-only retrieval behavior.
+            normalized_reference = normalize_atomic_citation(
+                resolved_citation
+            ).casefold()
+            exact_v2 = [
+                item
+                for item in candidates
+                if item.evidence_id.startswith("evidence:v2:")
+                and normalize_atomic_citation(item.citation).casefold()
+                == normalized_reference
+            ]
+            selected = exact_v2 or candidates
+            for item in selected:
+                if item.evidence_id in seen_ids:
+                    continue
+                evidence.append(item)
+                seen_ids.add(item.evidence_id)
+                if len(evidence) == limit:
+                    break
             if len(evidence) == limit:
                 break
         return evidence
@@ -322,15 +344,36 @@ class VectorStoreJSONEvidenceRetriever(LegalEvidenceRetriever):
         records: list[_VectorStoreRecord],
         citation: str,
     ) -> list[_VectorStoreRecord]:
-        normalized_citation = self._normalize(citation)
+        normalized_citation = self._normalize(
+            normalize_atomic_citation(citation)
+        )
         exact_matches = [
             record
             for record in records
-            if self._normalize(record.metadata.get("canonical_citation"))
+            if isinstance(record.metadata.get("canonical_citation"), str)
+            if self._normalize(
+                normalize_atomic_citation(
+                    record.metadata.get("canonical_citation")
+                )
+            )
             == normalized_citation
         ]
         if exact_matches:
             return exact_matches
+
+        if is_strict_atomic_citation(citation):
+            return []
+        # Detailed-looking but malformed references must fail closed instead
+        # of falling back to a nearby broad Article or Annex chunk.
+        normalized_authored = citation.casefold()
+        if (
+            ("article" in normalized_authored and "(" in citation)
+            or (
+                "annex i" in normalized_authored
+                and "section" in normalized_authored
+            )
+        ):
+            return []
 
         article_match = self._ARTICLE_PATTERN.search(citation)
         if article_match:

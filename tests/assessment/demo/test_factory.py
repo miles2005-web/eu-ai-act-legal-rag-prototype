@@ -60,7 +60,10 @@ class AssessmentWorkflowFactoryTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            bundle = create_assessment_workflow(vector_store_path=store_path)
+            bundle = create_assessment_workflow(
+                vector_store_path=store_path,
+                candidate_store_paths=[],
+            )
             facts = AssessmentFacts()
             facts.use_context.domain = UseDomain.EMPLOYMENT
             facts.use_context.task = "Recruitment system ranking candidates"
@@ -200,7 +203,10 @@ class AssessmentWorkflowFactoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             store_path = Path(temporary_directory) / "vector_store.json"
             store_path.write_text("[]", encoding="utf-8")
-            bundle = create_assessment_workflow(vector_store_path=store_path)
+            bundle = create_assessment_workflow(
+                vector_store_path=store_path,
+                candidate_store_paths=[],
+            )
             facts = AssessmentFacts()
             facts.product_regulation.ai_is_product = TriState.YES
             facts.product_regulation.product_type = "machinery"
