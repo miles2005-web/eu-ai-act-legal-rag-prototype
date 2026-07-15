@@ -1,0 +1,204 @@
+{
+  "fixture_version": "1.0.0",
+  "scenario_id": "industrial-robot-safety-data-access",
+  "scenario": {
+    "name": "Industrial Robot Safety and Data Access",
+    "description": "A European manufacturer operates an industrial robot with embedded AI that performs a protective safety function by automatically slowing, stopping, or triggering emergency braking. The robot is a connected product supported by a related digital service, generates operational product and service data, and an external maintenance provider requests access to relevant data. The manufacturer has separately confirmed the applicable Annex I machinery legislation and that third-party conformity assessment is required."
+  },
+  "authorized_rule_ids": [
+    "AI_ACT_HIGH_RISK_PRODUCT_SAFETY",
+    "EU_DATA_ACT_RELEVANCE"
+  ],
+  "facts": {
+    "schema_version": "2.0.0",
+    "case": {
+      "title": "EuroForge industrial robot safety and data assessment",
+      "reference": "DEMO-MULTI-INDUSTRIAL-001",
+      "assessment_date": "2026-07-15",
+      "notes": "Demonstration scenario for two independent preliminary screens under the EU AI Act and EU Data Act."
+    },
+    "system": {
+      "name": "SafeMotion Robotics AI",
+      "description": "Embedded AI monitors an industrial robot's operating zone and performs protective control by automatically slowing, stopping, or triggering emergency braking. A related digital service monitors the connected robot and processes operational product and service data.",
+      "lifecycle_status": "deployed",
+      "intended_purpose": "Perform a protective safety function for an industrial robot while supporting connected monitoring and maintenance data access.",
+      "outputs": [
+        "prediction",
+        "decision"
+      ],
+      "machine_based_inference": "yes",
+      "degree_of_autonomy": "substantial",
+      "adaptiveness_after_deployment": "no"
+    },
+    "scope": {
+      "provider_established_in_eu": "yes",
+      "deployer_established_in_eu": "yes",
+      "placed_on_eu_market": "yes",
+      "put_into_service_in_eu": "yes",
+      "output_used_in_eu": "yes",
+      "exclusively_military_defence_national_security": "no",
+      "research_before_market_or_service": "no",
+      "personal_non_professional_activity": "no",
+      "open_source_release": "no"
+    },
+    "organisation": {
+      "name": "EuroForge Robotics SE",
+      "establishment_countries": [
+        "DE",
+        "NL"
+      ]
+    },
+    "supply_chain": {
+      "develops_system": "yes",
+      "has_system_developed_for_it": "no",
+      "markets_under_own_name_or_trademark": "yes",
+      "uses_system_under_its_authority": "yes",
+      "introduces_third_country_system_into_eu_market": "no",
+      "makes_system_available_in_eu_distribution_chain": "yes",
+      "substantial_modification": "no",
+      "changed_intended_purpose": "no"
+    },
+    "use_context": {
+      "domain": "product_safety",
+      "task": "Industrial robot protective control, automatic slowing, stopping and emergency braking, with connected monitoring and maintenance data access",
+      "affected_persons": [
+        "worker"
+      ],
+      "materially_influences_decision": "no",
+      "human_review_before_effect": "no",
+      "profiles_natural_persons": "no"
+    },
+    "practices": {
+      "manipulative_or_deceptive_technique": "no",
+      "exploits_vulnerability": "no",
+      "causes_or_likely_causes_significant_harm": "unknown",
+      "social_scoring": "no",
+      "criminal_risk_based_solely_on_profiling": "no",
+      "untargeted_facial_image_scraping": "no",
+      "emotion_inference": "no",
+      "emotion_inference_workplace_or_education": "no",
+      "biometric_categorisation_sensitive_attributes": "no",
+      "realtime_remote_biometric_identification_public_space_law_enforcement": "no"
+    },
+    "high_risk": {
+      "is_safety_component_or_product": "unknown",
+      "product_covered_by_annex_i": "unknown",
+      "requires_third_party_conformity_assessment": "unknown",
+      "annex_iii_area": "other",
+      "annex_iii_use_case": "industrial_robot_safety_control",
+      "narrow_procedural_task": "unknown",
+      "improves_completed_human_activity": "unknown",
+      "detects_patterns_without_replacing_or_influencing_human_assessment": "unknown",
+      "preparatory_task": "unknown"
+    },
+    "product_regulation": {
+      "ai_is_product": "no",
+      "ai_is_safety_component": "yes",
+      "product_type": "industrial robot and regulated machinery",
+      "annex_i_instrument": "ANNEX_I_A_01_MACHINERY_DIRECTIVE_2006_42_EC",
+      "annex_i_instrument_confirmed": "yes",
+      "third_party_conformity_required": "yes"
+    },
+    "data_protection": {
+      "personal_data_processed": "no",
+      "automated_individual_decision": "no",
+      "special_category_data_processed": "no"
+    },
+    "data_act": {
+      "connected_product": "yes",
+      "related_service": "yes",
+      "data_generated": "yes",
+      "data_holder_identified": "yes",
+      "user_or_third_party_access_request": "yes"
+    },
+    "fact_metadata": {
+      "product_regulation.ai_is_product": {
+        "source": "questionnaire",
+        "question_id": "AI-ACT-6-1-AI-IS-PRODUCT",
+        "recorded_at": "2026-07-15T09:00:00+00:00"
+      },
+      "product_regulation.ai_is_safety_component": {
+        "source": "questionnaire",
+        "question_id": "AI-ACT-6-1-AI-IS-SAFETY-COMPONENT",
+        "recorded_at": "2026-07-15T09:01:00+00:00"
+      },
+      "product_regulation.product_type": {
+        "source": "questionnaire",
+        "question_id": "AI-ACT-6-1-PRODUCT-TYPE",
+        "recorded_at": "2026-07-15T09:02:00+00:00"
+      },
+      "product_regulation.annex_i_instrument": {
+        "source": "questionnaire",
+        "question_id": "AI-ACT-6-1-ANNEX-I-INSTRUMENT",
+        "recorded_at": "2026-07-15T09:03:00+00:00"
+      },
+      "product_regulation.annex_i_instrument_confirmed": {
+        "source": "questionnaire",
+        "question_id": "AI-ACT-6-1-ANNEX-I-CONFIRMED",
+        "recorded_at": "2026-07-15T09:04:00+00:00"
+      },
+      "product_regulation.third_party_conformity_required": {
+        "source": "questionnaire",
+        "question_id": "AI-ACT-6-1-THIRD-PARTY-CONFORMITY",
+        "recorded_at": "2026-07-15T09:05:00+00:00"
+      },
+      "data_act.connected_product": {
+        "source": "questionnaire",
+        "question_id": "DATA-ACT-CONNECTED-PRODUCT",
+        "recorded_at": "2026-07-15T09:10:00+00:00"
+      },
+      "data_act.related_service": {
+        "source": "questionnaire",
+        "question_id": "DATA-ACT-RELATED-SERVICE",
+        "recorded_at": "2026-07-15T09:11:00+00:00"
+      },
+      "data_act.data_generated": {
+        "source": "questionnaire",
+        "question_id": "DATA-ACT-DATA-GENERATED",
+        "recorded_at": "2026-07-15T09:12:00+00:00"
+      },
+      "data_act.data_holder_identified": {
+        "source": "questionnaire",
+        "question_id": "DATA-ACT-DATA-HOLDER",
+        "recorded_at": "2026-07-15T09:13:00+00:00"
+      },
+      "data_act.user_or_third_party_access_request": {
+        "source": "questionnaire",
+        "question_id": "DATA-ACT-ACCESS-REQUEST",
+        "recorded_at": "2026-07-15T09:14:00+00:00"
+      }
+    }
+  },
+  "expected_assessment": {
+    "finding_count": 2,
+    "framework_count": 2,
+    "evidence_count": 7,
+    "missing_requirement_count": 0,
+    "rule_failure_count": 0,
+    "findings": [
+      {
+        "rule_id": "AI_ACT_HIGH_RISK_PRODUCT_SAFETY",
+        "framework": "EU_AI_ACT",
+        "category": "HIGH_RISK_ARTICLE_6_1",
+        "status": "potentially_applies",
+        "evidence_citations": [
+          "Article 3(14)",
+          "Article 6(1)(a)",
+          "Article 6(1)(b)",
+          "Annex I, Section A, point 1"
+        ]
+      },
+      {
+        "rule_id": "EU_DATA_ACT_RELEVANCE",
+        "framework": "EU_DATA_ACT",
+        "category": "DATA_GOVERNANCE",
+        "status": "potentially_applies",
+        "evidence_citations": [
+          "Article 1(1)(a)",
+          "Article 2(5)",
+          "Article 2(6)"
+        ]
+      }
+    ]
+  }
+}

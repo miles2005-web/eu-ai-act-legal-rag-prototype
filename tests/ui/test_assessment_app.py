@@ -15,6 +15,7 @@ from src.assessment.models import TriState
 from src.assessment.questionnaire import QuestionResponseState
 from src.assessment.questionnaire.definitions import (
     AI_ACT_PRODUCT_SAFETY_RULE_ID,
+    EU_DATA_ACT_RULE_ID,
 )
 from src.ui.styles import ENTERPRISE_STYLES
 
@@ -36,6 +37,20 @@ class AssessmentAppSmokeTests(unittest.TestCase):
             button
             for button in app.button
             if button.label == "Open recruitment demo"
+        ).click()
+        app.run(timeout=10)
+        next(
+            button for button in app.button if button.label == "Run assessment"
+        ).click()
+        app.run(timeout=10)
+        return app
+
+    @staticmethod
+    def _open_industrial_multiframework_report(app: AppTest) -> AppTest:
+        next(
+            button
+            for button in app.button
+            if button.label == "Open multi-framework demo"
         ).click()
         app.run(timeout=10)
         next(
@@ -102,6 +117,151 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         button_labels = [button.label for button in app.button]
         self.assertIn("Open recruitment demo", button_labels)
         self.assertIn("Open industrial demo", button_labels)
+        self.assertIn("Open multi-framework demo", button_labels)
+
+    def test_multiframework_demo_shows_two_independent_framework_findings(self) -> None:
+        app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
+        self._open_industrial_multiframework_report(app)
+
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(
+            app.session_state["assessment_confirmed_modules"],
+            [AI_ACT_PRODUCT_SAFETY_RULE_ID, EU_DATA_ACT_RULE_ID],
+        )
+        report = app.session_state["assessment_report"]
+        self.assertEqual(
+            report.authorized_rule_ids,
+            [AI_ACT_PRODUCT_SAFETY_RULE_ID, EU_DATA_ACT_RULE_ID],
+        )
+        self.assertEqual(
+            [item.rule_id for item in report.findings],
+            [AI_ACT_PRODUCT_SAFETY_RULE_ID, EU_DATA_ACT_RULE_ID],
+        )
+        self.assertEqual(len(report.evidence), 7)
+        self.assertEqual(report.missing_information, [])
+        self.assertEqual(report.execution_failures, [])
+        self.assertIn(
+            "Two independent regulatory screens produced substantive findings.",
+            [item.value for item in app.info],
+        )
+        framework_summaries = "\n".join(
+            item.value
+            for item in app.markdown
+            if '<div class="ui-framework-finding-summary"' in item.value
+        )
+        self.assertIn('data-framework="EU_AI_ACT"', framework_summaries)
+        self.assertIn('data-framework="EU_DATA_ACT"', framework_summaries)
+        self.assertEqual(
+            framework_summaries.count(
+                '<div class="ui-framework-finding-summary"'
+            ),
+            2,
+        )
+        recommendations = "\n".join(
+            item.value
+            for item in app.markdown
+            if "ui-primary-recommendation" in item.value
+        )
+        self.assertIn("Annex I product legislation", recommendations)
+        self.assertIn("data-holder relationships", recommendations)
+        self.assertNotIn("GDPR", framework_summaries)
+        self.assertNotIn("employment", framework_summaries.casefold())
+        primary_markup = "\n".join(item.value for item in app.markdown)
+        self.assertNotIn(
+            "ANNEX_I_A_01_MACHINERY_DIRECTIVE_2006_42_EC",
+            primary_markup,
+        )
+
+    def test_multiframework_evidence_selection_keeps_sources_separate(self) -> None:
+        app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
+        self._open_industrial_multiframework_report(app)
+        report = app.session_state["assessment_report"]
+        findings = {item.rule_id: item for item in report.findings}
+
+        trace_buttons = [
+            button
+            for button in app.button
+            if button.label == "View full evidence trace"
+        ]
+        self.assertEqual(len(trace_buttons), 2)
+        trace_buttons[1].click()
+        app.run(timeout=10)
+
+        self.assertEqual(
+            app.session_state["selected_finding_id"],
+            findings[EU_DATA_ACT_RULE_ID].finding_id,
+        )
+        data_markup = "\n".join(item.value for item in app.markdown)
+        data_trace_markup = data_markup.split(
+            '<section class="ui-section-header"><h2 class="ui-section-title">Findings</h2>'
+        )[0]
+        self.assertIn("Data Act relevance potentially applies", data_trace_markup)
+        self.assertIn("Article 2(5)", data_trace_markup)
+        self.assertNotIn("Article 3(14)", data_trace_markup)
+
+        app.selectbox[0].set_value(
+            findings[AI_ACT_PRODUCT_SAFETY_RULE_ID].finding_id
+        )
+        app.run(timeout=10)
+
+        self.assertEqual(
+            app.session_state["selected_finding_id"],
+            findings[AI_ACT_PRODUCT_SAFETY_RULE_ID].finding_id,
+        )
+        ai_markup = "\n".join(item.value for item in app.markdown)
+        ai_trace_markup = ai_markup.split(
+            '<section class="ui-section-header"><h2 class="ui-section-title">Findings</h2>'
+        )[0]
+        self.assertIn("Article 3(14)", ai_trace_markup)
+        self.assertIn("Article 6(1)(a)", ai_trace_markup)
+        self.assertNotIn("Article 2(5)", ai_trace_markup)
+        self.assertIn(
+            "ANNEX_I_A_01_MACHINERY_DIRECTIVE_2006_42_EC",
+            {item.value for item in app.code},
+        )
+
+    def test_multiframework_language_and_scenario_switch_preserve_then_isolate_state(self) -> None:
+        app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
+        self._open_industrial_multiframework_report(app)
+        report = app.session_state["assessment_report"]
+        report_snapshot = report.to_dict()
+        selected = report.findings[1].finding_id
+        app.session_state["selected_finding_id"] = selected
+
+        app.radio[0].set_value("zh-CN")
+        app.run(timeout=10)
+
+        self.assertEqual(app.session_state["selected_finding_id"], selected)
+        self.assertEqual(
+            app.session_state["assessment_report"].to_dict(), report_snapshot
+        )
+        self.assertEqual(
+            app.session_state["assessment_confirmed_modules"],
+            [AI_ACT_PRODUCT_SAFETY_RULE_ID, EU_DATA_ACT_RULE_ID],
+        )
+        self.assertIn(
+            "两项相互独立的监管筛查形成了实质性结论。",
+            [item.value for item in app.info],
+        )
+
+        next(
+            button for button in app.button if button.label == "演示案例"
+        ).click()
+        app.run(timeout=10)
+        next(
+            button for button in app.button if button.label == "打开工业 AI 演示"
+        ).click()
+        app.run(timeout=10)
+
+        self.assertEqual(app.session_state["ui_language"], "zh-CN")
+        self.assertEqual(app.session_state["demo_scenario"], "industrial")
+        self.assertEqual(
+            app.session_state["assessment_confirmed_modules"],
+            [EU_DATA_ACT_RULE_ID],
+        )
+        self.assertIsNone(app.session_state["assessment_report"])
+        self.assertIsNone(app.session_state["selected_finding_id"])
+        self.assertIsNone(app.session_state["assessment_run_route"])
 
     def test_industrial_demo_opens_assessment_workspace(self) -> None:
         app = AppTest.from_file(str(APP_PATH)).run(timeout=10)

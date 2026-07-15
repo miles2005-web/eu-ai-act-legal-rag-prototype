@@ -30,6 +30,7 @@ from src.assessment.facts import (  # noqa: E402
     FactMetadata,
     FactSource,
     LifecycleStatus,
+    ProductRegulationFacts,
     SystemOutput,
     UseDomain,
 )
@@ -114,6 +115,12 @@ def build_assessment_facts(data: dict[str, Any]) -> AssessmentFacts:
         high_risk_data["annex_iii_area"]
     )
     facts.high_risk.annex_iii_use_case = high_risk_data["annex_iii_use_case"]
+
+    product_regulation_data = data.get("product_regulation")
+    if product_regulation_data is not None:
+        facts.product_regulation = ProductRegulationFacts.from_dict(
+            product_regulation_data
+        )
 
     for section_name in ("data_protection", "data_act"):
         section_data = data.get(section_name)

@@ -93,6 +93,17 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 INDUSTRIAL_FIXTURE_PATH = (
     PROJECT_ROOT / "tests" / "fixtures" / "industrial_ai_case.json"
 )
+INDUSTRIAL_MULTI_FIXTURE_PATH = (
+    PROJECT_ROOT
+    / "tests"
+    / "fixtures"
+    / "industrial_robot_multiframework_case.json"
+)
+DEMO_TITLE_KEYS = {
+    "recruitment": "demo.recruitment.title",
+    "industrial": "demo.industrial.title",
+    "industrial_multi_framework": "demo.industrial_multi_framework.title",
+}
 VIEW_LANDING = "landing"
 VIEW_WORKSPACE = "workspace"
 VIEW_RESULTS = "results"
@@ -546,6 +557,31 @@ def framework_screen_status_key(
     return "framework_screen.completed"
 
 
+def render_multi_finding_summary(findings: list, language: str) -> None:
+    """Show equally weighted framework screens for independent Findings."""
+
+    if len(findings) < 2:
+        return
+    st.info(t("report.multiple_findings.summary", language))
+    columns = st.columns(len(findings))
+    for column, finding in zip(columns, findings, strict=True):
+        with column:
+            with st.container(border=True):
+                render_framework_badge(
+                    finding.framework,
+                    tone="neutral",
+                    language=language,
+                )
+                st.markdown(
+                    '<div class="ui-framework-finding-summary" '
+                    f'data-framework="{escape(finding.framework.value)}">'
+                    f"<strong>{escape(finding_title(finding, language))}</strong>"
+                    f"<span>{escape(status_label(finding.status, language))}</span>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+
+
 def render_missing_item(item, language: str, *, scope: str) -> None:
     """Render a localized requirement while retaining raw keys elsewhere."""
 
@@ -596,10 +632,15 @@ def _preloaded_provenance(facts, module_id: str) -> list[FactProvenance]:
     return records
 
 
-def load_recruitment_demo() -> None:
-    """Create a case from the existing pure-data recruitment demo fixture."""
+def _activate_demo(
+    payload: dict,
+    *,
+    scenario_key: str,
+    confirmed_modules: list[str],
+    routing_hints: list[str],
+) -> None:
+    """Activate one fixture without retaining state from another scenario."""
 
-    payload = load_fixture()
     bundle = reset_case_dependent_state(view=VIEW_WORKSPACE)
     facts = build_assessment_facts(payload["facts"])
     assessment_case = bundle.case_service.create_case(
@@ -609,46 +650,64 @@ def load_recruitment_demo() -> None:
     )
     st.session_state.assessment_case_id = assessment_case.case_id
     st.session_state.demo_loaded = True
-    st.session_state.demo_scenario = "recruitment"
+    st.session_state.demo_scenario = scenario_key
     st.session_state.demo_scenario_id = payload["scenario_id"]
-    st.session_state.assessment_confirmed_modules = [
-        AI_ACT_EMPLOYMENT_RULE_ID
+    st.session_state.assessment_confirmed_modules = list(confirmed_modules)
+    st.session_state.assessment_routing_hints = list(routing_hints)
+    st.session_state.assessment_fact_provenance = [
+        record
+        for module_id in confirmed_modules
+        for record in _preloaded_provenance(facts, module_id)
     ]
-    st.session_state.assessment_routing_hints = [
-        "employment.recruitment",
-        "employment.candidate_ranking",
-    ]
-    st.session_state.assessment_fact_provenance = _preloaded_provenance(
-        facts,
-        AI_ACT_EMPLOYMENT_RULE_ID,
-    )
     st.rerun()
+
+
+def load_recruitment_demo() -> None:
+    """Create a case from the existing pure-data recruitment demo fixture."""
+
+    _activate_demo(
+        load_fixture(),
+        scenario_key="recruitment",
+        confirmed_modules=[AI_ACT_EMPLOYMENT_RULE_ID],
+        routing_hints=[
+            "employment.recruitment",
+            "employment.candidate_ranking",
+        ],
+    )
 
 
 def load_industrial_demo() -> None:
     """Create a case from the existing industrial AI fixture."""
 
     payload = json.loads(INDUSTRIAL_FIXTURE_PATH.read_text(encoding="utf-8"))
-    facts = build_assessment_facts(payload["facts"])
-    bundle = reset_case_dependent_state(view=VIEW_WORKSPACE)
-    assessment_case = bundle.case_service.create_case(
-        payload["scenario"]["name"],
-        description=payload["scenario"]["description"],
-        facts=facts,
+    _activate_demo(
+        payload,
+        scenario_key="industrial",
+        confirmed_modules=[EU_DATA_ACT_RULE_ID],
+        routing_hints=["data_act.industrial_connected_equipment"],
     )
-    st.session_state.assessment_case_id = assessment_case.case_id
-    st.session_state.demo_loaded = True
-    st.session_state.demo_scenario = "industrial"
-    st.session_state.demo_scenario_id = payload["scenario_id"]
-    st.session_state.assessment_confirmed_modules = [EU_DATA_ACT_RULE_ID]
-    st.session_state.assessment_routing_hints = [
-        "data_act.industrial_connected_equipment"
-    ]
-    st.session_state.assessment_fact_provenance = _preloaded_provenance(
-        facts,
-        EU_DATA_ACT_RULE_ID,
+
+
+def load_industrial_multi_framework_demo() -> None:
+    """Create the explicit AI Act and Data Act industrial demo case."""
+
+    payload = json.loads(
+        INDUSTRIAL_MULTI_FIXTURE_PATH.read_text(encoding="utf-8")
     )
-    st.rerun()
+    _activate_demo(
+        payload,
+        scenario_key="industrial_multi_framework",
+        confirmed_modules=[
+            AI_ACT_PRODUCT_SAFETY_RULE_ID,
+            EU_DATA_ACT_RULE_ID,
+        ],
+        routing_hints=[
+            "data_act.industrial_connected_equipment",
+            "ai_act.product_safety_component",
+            "ai_act.product_safety_context",
+            "ai_act.conformity_assessment",
+        ],
+    )
 
 
 def render_sidebar(
@@ -900,7 +959,7 @@ def render_case_creation(bundle: AssessmentWorkflowBundle, language: str) -> Non
         eyebrow=t("demo.section.eyebrow", language),
         description=t("demo.section.copy", language),
     )
-    recruitment_column, industrial_column = st.columns(2)
+    recruitment_column, industrial_column, multi_framework_column = st.columns(3)
     with recruitment_column:
         with st.container(border=True):
             st.markdown(
@@ -943,6 +1002,27 @@ def render_case_creation(bundle: AssessmentWorkflowBundle, language: str) -> Non
                 use_container_width=True,
             ):
                 load_industrial_demo()
+    with multi_framework_column:
+        with st.container(border=True):
+            st.markdown(
+                f"""
+                <div class="ui-demo-label">{t("demo.industrial_multi_framework.label", language)}</div>
+                <div class="ui-demo-title">{t("demo.industrial_multi_framework.title", language)}</div>
+                <div class="ui-demo-copy">
+                  {t("demo.industrial_multi_framework.copy", language)}
+                </div>
+                <div class="ui-demo-meta">
+                  {t("demo.industrial_multi_framework.meta", language)}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            if st.button(
+                t("demo.industrial_multi_framework.open", language),
+                type="primary",
+                use_container_width=True,
+            ):
+                load_industrial_multi_framework_demo()
 
     render_section_header(
         t("case.new.title", language),
@@ -1763,12 +1843,11 @@ def render_fact_collection(
         description=t("facts.copy", language),
     )
     if st.session_state.get("demo_loaded"):
+        demo_key = st.session_state.get("demo_scenario")
         demo_name = scenario_text(
             "case_name",
             t(
-                "demo.industrial.title"
-                if st.session_state.get("demo_scenario") == "industrial"
-                else "demo.recruitment.title",
+                DEMO_TITLE_KEYS.get(demo_key, "demo.recruitment.title"),
                 language,
             ),
             language,
@@ -2241,6 +2320,7 @@ def render_report(
     render_section_header(t("report.findings.title", language))
     if not report_findings:
         st.info(t("report.no_finding", language))
+    render_multi_finding_summary(primary_findings, language)
     for finding in primary_findings:
         render_result_finding_card(
             finding,
@@ -2250,23 +2330,50 @@ def render_report(
             language,
         )
 
-    render_section_header(t("report.missing.title", language))
-    if primary_missing_information:
-        for item in primary_missing_information:
-            render_missing_item(item, language, scope="primary")
+    if len(primary_findings) > 1:
+        render_section_header(t("report.framework_actions.title", language))
+        for finding in primary_findings:
+            finding_missing = [
+                item
+                for item in primary_missing_information
+                if item.rule_id == finding.rule_id
+            ]
+            st.markdown(
+                f"### {framework_label(finding.framework, language)} — "
+                f"{finding_title(finding, language)}"
+            )
+            if finding_missing:
+                st.markdown(f"**{t('report.missing.title', language)}**")
+                for item in finding_missing:
+                    render_missing_item(item, language, scope="primary")
+            finding_recommendations = scoped_recommendations(
+                report,
+                [finding],
+                finding_missing,
+                language,
+            )
+            if finding_recommendations:
+                st.markdown(f"**{t('report.recommendations', language)}**")
+                for recommendation in finding_recommendations:
+                    render_recommendation(recommendation, scope="primary")
     else:
-        st.write(t("report.missing.none", language))
+        render_section_header(t("report.missing.title", language))
+        if primary_missing_information:
+            for item in primary_missing_information:
+                render_missing_item(item, language, scope="primary")
+        else:
+            st.write(t("report.missing.none", language))
 
-    primary_recommendations = scoped_recommendations(
-        report,
-        primary_findings,
-        primary_missing_information,
-        language,
-    )
-    if primary_recommendations:
-        st.subheader(t("report.recommendations", language))
-        for recommendation in primary_recommendations:
-            render_recommendation(recommendation, scope="primary")
+        primary_recommendations = scoped_recommendations(
+            report,
+            primary_findings,
+            primary_missing_information,
+            language,
+        )
+        if primary_recommendations:
+            st.subheader(t("report.recommendations", language))
+            for recommendation in primary_recommendations:
+                render_recommendation(recommendation, scope="primary")
 
     secondary_findings = [
         finding

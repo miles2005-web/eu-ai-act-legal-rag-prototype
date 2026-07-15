@@ -305,6 +305,24 @@ p, label, [data-testid="stCaptionContainer"] {
     margin-bottom: 0.7rem;
 }
 
+.ui-framework-finding-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.42rem;
+    margin-top: 0.65rem;
+}
+
+.ui-framework-finding-summary strong {
+    color: var(--app-text-primary);
+    font-size: 0.94rem;
+    line-height: 1.4;
+}
+
+.ui-framework-finding-summary span {
+    color: var(--app-text-secondary);
+    font-size: 0.76rem;
+}
+
 .ui-framework-name,
 .ui-product-mark__name,
 .ui-capability-title,

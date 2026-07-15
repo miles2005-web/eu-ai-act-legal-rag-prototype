@@ -13,6 +13,10 @@ from src.assessment.evidence import Evidence
 from src.assessment.findings import FindingStatus
 from src.assessment.frameworks import RegulatoryFramework
 from src.assessment.models import TriState
+from src.assessment.product_regulation import (
+    AnnexIInstrumentNotFoundError,
+    load_annex_i_instrument_catalog,
+)
 from src.ui.i18n import DEFAULT_LANGUAGE, t
 
 
@@ -93,6 +97,19 @@ def fact_value(
             value = getattr(value, segment)
     except AttributeError:
         return t("value.not_recorded", language)
+    if (
+        fact_path == "product_regulation.annex_i_instrument"
+        and isinstance(value, str)
+        and value
+    ):
+        try:
+            instrument = load_annex_i_instrument_catalog().get(value)
+        except AnnexIInstrumentNotFoundError:
+            return t("value.not_recorded", language)
+        return (
+            f"{instrument.display_label(language)} — "
+            f"{instrument.canonical_reference}"
+        )
     return _display_value(value, language)
 
 

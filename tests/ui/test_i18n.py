@@ -186,6 +186,22 @@ class I18nTests(unittest.TestCase):
             ),
         )
         self.assertEqual(
+            t("demo.industrial_multi_framework.title", "en"),
+            "Industrial Robot Safety and Data Access",
+        )
+        self.assertEqual(
+            t("demo.industrial_multi_framework.title", "zh-CN"),
+            "工业机器人安全与数据访问联合评估",
+        )
+        self.assertEqual(
+            t("report.multiple_findings.summary", "en"),
+            "Two independent regulatory screens produced substantive findings.",
+        )
+        self.assertEqual(
+            t("report.multiple_findings.summary", "zh-CN"),
+            "两项相互独立的监管筛查形成了实质性结论。",
+        )
+        self.assertEqual(
             t("missing_reason.path_not_found", "zh-CN"),
             "未找到事实字段",
         )

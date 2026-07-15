@@ -97,6 +97,20 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "Prepared facts · Connected-product relevance screening"
         ),
         "demo.industrial.open": "Open industrial demo",
+        "demo.industrial_multi_framework.label": (
+            "Industrial safety and data · EU AI Act + EU Data Act"
+        ),
+        "demo.industrial_multi_framework.title": (
+            "Industrial Robot Safety and Data Access"
+        ),
+        "demo.industrial_multi_framework.copy": (
+            "Assess embedded AI that performs an industrial-robot safety function "
+            "while connected product and related-service data is requested."
+        ),
+        "demo.industrial_multi_framework.meta": (
+            "Prepared facts · Two independent regulatory screens"
+        ),
+        "demo.industrial_multi_framework.open": "Open multi-framework demo",
         "scenario.recruitment-ai-ranking-candidates.case_name": (
             "Recruitment AI candidate screening and ranking"
         ),
@@ -129,6 +143,23 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "scenario.industrial-ai-connected-machinery-data-access.task": (
             "Connected machinery monitoring through a related service using "
             "product operational data"
+        ),
+        "scenario.industrial-robot-safety-data-access.case_name": (
+            "Industrial Robot Safety and Data Access"
+        ),
+        "scenario.industrial-robot-safety-data-access.description": (
+            "A European manufacturer operates an industrial robot with embedded "
+            "AI that automatically slows, stops, or triggers emergency braking. "
+            "The connected robot and related service generate operational data "
+            "requested by an external maintenance provider."
+        ),
+        "scenario.industrial-robot-safety-data-access.purpose": (
+            "Perform a protective robot safety function and support connected "
+            "monitoring and maintenance data access."
+        ),
+        "scenario.industrial-robot-safety-data-access.task": (
+            "Industrial robot protective control and emergency braking with "
+            "connected product and related-service data access"
         ),
         "case.new.eyebrow": "New case",
         "case.new.title": "Create a blank assessment",
@@ -378,6 +409,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "missing_reason.unknown": "Unknown",
         "missing_reason.path_not_found": "Fact path not found",
         "report.recommendations": "Recommendations",
+        "report.multiple_findings.summary": (
+            "Two independent regulatory screens produced substantive findings."
+        ),
+        "report.framework_actions.title": "Framework-specific next steps",
         "recommendation.requirement": (
             "Confirm {fact} before running the {framework} assessment."
         ),
@@ -389,9 +424,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "Obtain legal review before relying on this preliminary GDPR "
             "Article 22 relevance assessment."
         ),
+        "recommendation.review.AI_ACT_HIGH_RISK_PRODUCT_SAFETY": (
+            "Verify the applicable Annex I product legislation, retain the "
+            "safety-component classification record, confirm the relevant "
+            "conformity-assessment route, and conduct further legal and product-"
+            "compliance review."
+        ),
         "recommendation.review.EU_DATA_ACT_RELEVANCE": (
-            "Obtain legal review before relying on this preliminary EU Data Act "
-            "relevance assessment."
+            "Identify the relevant user and data-holder relationships, map "
+            "generated product and related-service data, review access, sharing "
+            "and contractual arrangements, and conduct further Data Act assessment."
         ),
         "recommendation.supporting_authority_readable": (
             "Obtain supporting legal authority before relying on this preliminary "
@@ -622,6 +664,15 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "demo.industrial.copy": "评估产生运行数据且外部维护方请求数据访问的联网机械监测系统。",
         "demo.industrial.meta": "预设事实 · 联网产品相关性筛查",
         "demo.industrial.open": "打开工业 AI 演示",
+        "demo.industrial_multi_framework.label": (
+            "工业安全与数据 · 《欧盟人工智能法案》+《欧盟数据法案》"
+        ),
+        "demo.industrial_multi_framework.title": "工业机器人安全与数据访问联合评估",
+        "demo.industrial_multi_framework.copy": (
+            "评估承担工业机器人安全功能的嵌入式 AI，以及被请求访问的互联产品和相关服务数据。"
+        ),
+        "demo.industrial_multi_framework.meta": "预设事实 · 两项相互独立的监管筛查",
+        "demo.industrial_multi_framework.open": "打开多框架联合评估",
         "scenario.recruitment-ai-ranking-candidates.case_name": (
             "招聘 AI 候选人筛选与排序"
         ),
@@ -647,6 +698,20 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "scenario.industrial-ai-connected-machinery-data-access.task": (
             "通过相关服务监测联网机械并处理产品运行数据"
+        ),
+        "scenario.industrial-robot-safety-data-access.case_name": (
+            "工业机器人安全与数据访问联合评估"
+        ),
+        "scenario.industrial-robot-safety-data-access.description": (
+            "一家欧洲制造商运行一台配有嵌入式 AI 的工业机器人。该 AI 会自动减速、"
+            "停止或触发紧急制动；联网机器人及相关服务产生运行数据，外部维护服务商"
+            "请求访问有关数据。"
+        ),
+        "scenario.industrial-robot-safety-data-access.purpose": (
+            "执行机器人保护性安全功能，并支持联网监测及维护数据访问。"
+        ),
+        "scenario.industrial-robot-safety-data-access.task": (
+            "工业机器人保护性控制与紧急制动，以及互联产品和相关服务数据访问"
         ),
         "case.new.eyebrow": "新案例",
         "case.new.title": "创建空白评估",
@@ -835,6 +900,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "missing_reason.unknown": "未知",
         "missing_reason.path_not_found": "未找到事实字段",
         "report.recommendations": "建议",
+        "report.multiple_findings.summary": "两项相互独立的监管筛查形成了实质性结论。",
+        "report.framework_actions.title": "按监管框架区分的后续行动",
         "recommendation.requirement": (
             "请确认“{fact}”，然后重新运行{framework}评估。"
         ),
@@ -844,8 +911,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "recommendation.review.GDPR_ARTICLE22_RELEVANCE": (
             "在依赖该 GDPR 第 22 条相关性初步评估前，请进行进一步法律审查。"
         ),
+        "recommendation.review.AI_ACT_HIGH_RISK_PRODUCT_SAFETY": (
+            "请核实适用的附件 I 产品法规，保留支持安全部件分类的记录，核实适用的"
+            "合格评定路径，并进一步开展法律及产品合规审查。"
+        ),
         "recommendation.review.EU_DATA_ACT_RELEVANCE": (
-            "在依赖该《欧盟数据法案》相关性初步评估前，请进行进一步法律审查。"
+            "请识别相关用户和数据持有人关系，梳理生成的产品及相关服务数据，审查"
+            "访问、共享和合同安排，并进一步开展《欧盟数据法案》评估。"
         ),
         "recommendation.supporting_authority_readable": (
             "在依赖该初步结论前，请补充支持性法律依据。"

@@ -113,6 +113,28 @@ class UIComponentSmokeTests(unittest.TestCase):
                 self.assertEqual(fact_label(fact_path, "en"), english)
                 self.assertEqual(fact_label(fact_path, "zh-CN"), chinese)
 
+    def test_annex_i_catalogue_id_is_humanized_outside_technical_details(self) -> None:
+        facts = AssessmentFacts()
+        facts.product_regulation.annex_i_instrument = (
+            "ANNEX_I_A_01_MACHINERY_DIRECTIVE_2006_42_EC"
+        )
+
+        english = fact_value(
+            facts,
+            "product_regulation.annex_i_instrument",
+            "en",
+        )
+        chinese = fact_value(
+            facts,
+            "product_regulation.annex_i_instrument",
+            "zh-CN",
+        )
+        self.assertIn("Annex I, Section A, point 1", english)
+        self.assertIn("机械指令", chinese)
+        self.assertIn("Annex I, Section A, point 1", chinese)
+        self.assertNotIn("ANNEX_I_A_01", english)
+        self.assertNotIn("ANNEX_I_A_01", chinese)
+
     def test_reasoning_results_include_textual_state(self) -> None:
         self.assertEqual(reasoning_state("material_influence"), ("Matched", "matched"))
         self.assertEqual(
