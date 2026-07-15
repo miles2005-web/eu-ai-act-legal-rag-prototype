@@ -56,6 +56,22 @@ class I18nTests(unittest.TestCase):
             "尚未形成实质性评估结论。需要补充事实，或当前场景尚需相应的评估模块支持。",
         )
 
+    def test_incomplete_assessment_copy_is_bilingual_and_non_conclusive(self) -> None:
+        self.assertEqual(t("incomplete.title", "en"), "Assessment incomplete")
+        self.assertEqual(t("incomplete.title", "zh-CN"), "评估尚未完成")
+        self.assertEqual(
+            t("assessment.run_with_gaps", "en"),
+            "Run with information gaps",
+        )
+        self.assertEqual(
+            t("assessment.run_with_gaps", "zh-CN"),
+            "带信息缺口运行",
+        )
+        for language in SUPPORTED_LANGUAGES:
+            copy = t("incomplete.summary", language).casefold()
+            self.assertNotIn("compliant", copy)
+            self.assertNotIn("does not apply", copy)
+
     def test_evidence_trace_hierarchy_copy_is_bilingual(self) -> None:
         self.assertEqual(
             t("trace.rule.mapping", "en"),
@@ -72,6 +88,61 @@ class I18nTests(unittest.TestCase):
         self.assertEqual(
             t("trace.rule.conditions", "zh-CN", matched=3, total=3),
             "已满足条件：3/3",
+        )
+
+    def test_article_6_1_questions_and_boundary_are_bilingual(self) -> None:
+        self.assertIn(
+            "itself a product",
+            t("question.ai_is_product.label.en", "en"),
+        )
+        self.assertIn(
+            "本身是否作为产品",
+            t("question.ai_is_product.label.zh_cn", "zh-CN"),
+        )
+        self.assertIn(
+            "Selecting an instrument is not confirmation",
+            t("question.annex_i_instrument_confirmed.help.en", "en"),
+        )
+        self.assertIn(
+            "选择法规并不等于确认适用",
+            t(
+                "question.annex_i_instrument_confirmed.help.zh_cn",
+                "zh-CN",
+            ),
+        )
+        self.assertIn(
+            "only the Article 6(1)",
+            t("module.ai_act.product_safety.boundary", "en"),
+        )
+        self.assertIn(
+            "仅评估《人工智能法案》第6条第1款",
+            t("module.ai_act.product_safety.boundary", "zh-CN"),
+        )
+
+    def test_context_unknown_and_pending_evidence_copy_is_bilingual(self) -> None:
+        self.assertIn(
+            "saved as case context",
+            t("normalization.ambiguous", "en"),
+        )
+        self.assertIn(
+            "描述已作为案例信息保存",
+            t("normalization.ambiguous", "zh-CN"),
+        )
+        self.assertEqual(
+            t("questionnaire.response.recorded_unknown", "en"),
+            "Recorded: Unknown",
+        )
+        self.assertEqual(
+            t("questionnaire.response.recorded_unknown", "zh-CN"),
+            "已记录：未知",
+        )
+        self.assertIn(
+            "atomic official source Evidence",
+            t("evidence.pending_binding", "en"),
+        )
+        self.assertIn(
+            "原子官方原文证据",
+            t("evidence.pending_binding", "zh-CN"),
         )
 
     def test_unknown_key_is_returned_safely(self) -> None:

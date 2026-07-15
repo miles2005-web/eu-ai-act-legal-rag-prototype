@@ -68,6 +68,7 @@ class AssessmentReport(SerializableModel):
     report_version: str
     findings_by_framework: list[FrameworkFindings] = field(default_factory=list)
     assessed_frameworks: list[RegulatoryFramework] = field(default_factory=list)
+    authorized_rule_ids: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         for field_name in (
@@ -87,3 +88,10 @@ class AssessmentReport(SerializableModel):
             for recommendation in self.recommendations
         ):
             raise ValueError("recommendations must contain non-empty strings")
+        if any(
+            not isinstance(rule_id, str) or not rule_id.strip()
+            for rule_id in self.authorized_rule_ids
+        ):
+            raise ValueError("authorized_rule_ids must contain non-empty strings")
+        if len(set(self.authorized_rule_ids)) != len(self.authorized_rule_ids):
+            raise ValueError("authorized_rule_ids must not contain duplicates")

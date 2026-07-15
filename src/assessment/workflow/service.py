@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from copy import deepcopy
+from hashlib import sha256
+import json
 
 from src.assessment.case import AssessmentCaseService
 from src.assessment.engine import AssessmentEngine
@@ -43,21 +46,37 @@ class AssessmentWorkflowService:
         self._runs_by_id: dict[str, AssessmentRun] = {}
         self._run_ids_by_case: dict[str, list[str]] = {}
 
-    def run(self, case_id: str) -> AssessmentReport:
-        """Execute one traceable workflow for the case's current fact snapshot."""
+    def run(
+        self,
+        case_id: str,
+        *,
+        rule_ids: Iterable[str] | None = None,
+    ) -> AssessmentReport:
+        """Execute one traceable workflow within an explicit rule scope.
+
+        Omitting ``rule_ids`` preserves the original full-registry execution
+        contract for non-UI callers.
+        """
 
         assessment_case = self._case_service.get_case(case_id)
+        authorized_rule_ids = self._assessment_engine.resolve_rule_ids(rule_ids)
         assessment_run = AssessmentRun(
             case_id=assessment_case.case_id,
             facts_snapshot=assessment_case.current_facts,
             ruleset_version=self._assessment_engine.engine_version,
+            authorized_rule_ids=list(authorized_rule_ids),
+            input_fingerprint=self._fingerprint(
+                assessment_case.current_facts.to_dict(),
+                authorized_rule_ids,
+            ),
             status=AssessmentRunStatus.RUNNING,
         )
         assessment_result: AssessmentResult | None = None
 
         try:
             assessment_result = self._assessment_engine.run(
-                assessment_run.facts_snapshot
+                assessment_run.facts_snapshot,
+                rule_ids=authorized_rule_ids,
             )
             assessment_result.assessment_run_id = assessment_run.id
             for finding in assessment_result.findings:
@@ -86,6 +105,21 @@ class AssessmentWorkflowService:
             assessment_run.error_message = str(exc) or type(exc).__name__
             self._store_run(assessment_run)
             raise
+
+    def input_fingerprint(
+        self,
+        case_id: str,
+        *,
+        rule_ids: Iterable[str] | None = None,
+    ) -> str:
+        """Return the current case fingerprint for report-staleness checks."""
+
+        assessment_case = self._case_service.get_case(case_id)
+        authorized_rule_ids = self._assessment_engine.resolve_rule_ids(rule_ids)
+        return self._fingerprint(
+            assessment_case.current_facts.to_dict(),
+            authorized_rule_ids,
+        )
 
     def get_run(self, run_id: str) -> AssessmentRun:
         """Return an isolated historical run snapshot."""
@@ -119,3 +153,19 @@ class AssessmentWorkflowService:
             assessment_run.id
         )
 
+    def _fingerprint(
+        self,
+        facts_snapshot: dict,
+        authorized_rule_ids: tuple[str, ...],
+    ) -> str:
+        canonical = json.dumps(
+            {
+                "facts": facts_snapshot,
+                "authorized_rule_ids": list(authorized_rule_ids),
+                "engine_version": self._assessment_engine.engine_version,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        return sha256(canonical.encode("utf-8")).hexdigest()

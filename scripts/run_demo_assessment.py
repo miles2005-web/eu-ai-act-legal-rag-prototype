@@ -20,6 +20,9 @@ from src.assessment import (  # noqa: E402
 )
 from src.assessment.demo import create_assessment_workflow  # noqa: E402
 from src.assessment.workflow import AssessmentWorkflowService  # noqa: E402
+from src.assessment.questionnaire.definitions import (  # noqa: E402
+    AI_ACT_EMPLOYMENT_RULE_ID,
+)
 from src.assessment.facts import (  # noqa: E402
     AffectedPerson,
     AnnexIIIArea,
@@ -197,7 +200,10 @@ def print_report_summary(case_name: str, report: AssessmentReport) -> None:
 def main() -> None:
     payload = load_fixture()
     workflow, case_id, case_name = build_workflow(payload)
-    report = workflow.run(case_id)
+    report = workflow.run(
+        case_id,
+        rule_ids=(AI_ACT_EMPLOYMENT_RULE_ID,),
+    )
     validate_expected_result(report, payload["expected_assessment"])
     print_report_summary(case_name, report)
 

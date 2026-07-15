@@ -22,12 +22,14 @@ from src.assessment.models import TriState
 from src.assessment.questionnaire import (
     FactProvenance,
     QuestionnaireRoute,
+    QuestionResponseState,
     build_default_questionnaire_router,
     calculate_invalidations,
 )
 from src.assessment.questionnaire.models import AnswerType
 from src.assessment.questionnaire.definitions import (
     AI_ACT_EMPLOYMENT_RULE_ID,
+    AI_ACT_PRODUCT_SAFETY_RULE_ID,
     EU_DATA_ACT_RULE_ID,
     GDPR_ARTICLE22_RULE_ID,
 )
@@ -64,11 +66,14 @@ from src.ui.normalization import (
 from src.ui.questionnaire import (
     IMPLEMENTED_MODULE_IDS,
     ROUTING_HINT_IDS,
+    UNANSWERED_WIDGET_VALUE,
     QuestionnaireAnswer,
     apply_question_answers,
+    authorized_rule_ids_for_modules,
     clear_fact_paths,
+    confirmed_module_gaps,
+    confirmed_missing_fact_paths,
     current_answer,
-    execution_facts_for_modules,
     hints_from_normalization,
     localized_text_key,
     merge_provenance,
@@ -76,6 +81,7 @@ from src.ui.questionnaire import (
     modules_for_question,
     question_definition,
     question_id_for_fact_path,
+    question_option_label,
     remove_provenance,
     required_facts_complete,
     resolve_fact,
@@ -90,6 +96,8 @@ VIEW_LANDING = "landing"
 VIEW_WORKSPACE = "workspace"
 VIEW_RESULTS = "results"
 VIEW_EVIDENCE = "evidence"
+RUN_MODE_COMPLETE = "complete"
+RUN_MODE_WITH_GAPS = "with_gaps"
 CASE_FORM_STATE_KEYS = (
     "assessment_fact_system_name",
     "assessment_fact_system_purpose",
@@ -113,6 +121,11 @@ QUESTIONNAIRE_STATE_KEYS = (
     "assessment_questionnaire_route",
     "assessment_pending_widget_resets",
     "assessment_fact_save_notice",
+    "assessment_edit_question_ids",
+    "assessment_run_mode",
+    "assessment_run_route",
+    "assessment_focus_module_id",
+    "assessment_focus_question_id",
 )
 QUESTION_WIDGET_STATE_KEYS = {
     "INTAKE-USE-TASK": "assessment_fact_task",
@@ -246,6 +259,22 @@ def initialize_ui_state() -> None:
     st.session_state.setdefault("assessment_questionnaire_route", None)
     st.session_state.setdefault("assessment_pending_widget_resets", [])
     st.session_state.setdefault("assessment_fact_save_notice", None)
+    st.session_state.setdefault("assessment_edit_question_ids", [])
+    st.session_state.setdefault("assessment_run_mode", None)
+    st.session_state.setdefault("assessment_run_route", None)
+    st.session_state.setdefault("assessment_focus_module_id", None)
+    st.session_state.setdefault("assessment_focus_question_id", None)
+
+    # Streamlit removes widget-owned keys when their widget is not rendered.
+    # Keep the manual-module selection alive while a report/evidence view is
+    # open so returning to the workspace cannot expose a stale widget tree.
+    if st.session_state.get("assessment_view") != VIEW_WORKSPACE:
+        st.session_state.assessment_manual_modules_widget = list(
+            st.session_state.get("assessment_manual_modules_widget", [])
+        )
+        for key in tuple(st.session_state):
+            if str(key).startswith("assessment_question::"):
+                st.session_state[key] = st.session_state[key]
 
 
 def navigate(view: str) -> None:
@@ -281,6 +310,11 @@ def reset_case_dependent_state(*, view: str) -> AssessmentWorkflowBundle:
     st.session_state.assessment_questionnaire_route = None
     st.session_state.assessment_pending_widget_resets = []
     st.session_state.assessment_fact_save_notice = None
+    st.session_state.assessment_edit_question_ids = []
+    st.session_state.assessment_run_mode = None
+    st.session_state.assessment_run_route = None
+    st.session_state.assessment_focus_module_id = None
+    st.session_state.assessment_focus_question_id = None
     return bundle
 
 
@@ -302,6 +336,8 @@ def replace_workflow_bundle_preserving_case(
     st.session_state.assessment_workflow_bundle = replacement
     st.session_state.assessment_report = None
     st.session_state.selected_finding_id = None
+    st.session_state.assessment_run_mode = None
+    st.session_state.assessment_run_route = None
     if st.session_state.get("assessment_view") in (VIEW_RESULTS, VIEW_EVIDENCE):
         st.session_state.assessment_view = VIEW_WORKSPACE
     return replacement
@@ -312,6 +348,8 @@ def clear_assessment_output() -> None:
 
     st.session_state.assessment_report = None
     st.session_state.selected_finding_id = None
+    st.session_state.assessment_run_mode = None
+    st.session_state.assessment_run_route = None
     if st.session_state.get("assessment_view") in (VIEW_RESULTS, VIEW_EVIDENCE):
         st.session_state.assessment_view = VIEW_WORKSPACE
 
@@ -352,7 +390,40 @@ def report_belongs_to_case(
         )
     except (KeyError, ValueError):
         return False
-    return assessment_run.case_id == case_id
+    if assessment_run.case_id != case_id:
+        return False
+    authorized_rule_ids = authorized_rule_ids_for_modules(
+        st.session_state.get("assessment_confirmed_modules", [])
+    )
+    return assessment_run.input_fingerprint == bundle.workflow.input_fingerprint(
+        case_id,
+        rule_ids=authorized_rule_ids,
+    )
+
+
+def authorized_findings(
+    report: AssessmentReport,
+    route: QuestionnaireRoute | None,
+) -> list:
+    """Return Findings produced by modules explicitly authorized for the run."""
+
+    if route is None:
+        return list(report.findings)
+    confirmed = frozenset(route.confirmed_modules)
+    return [finding for finding in report.findings if finding.rule_id in confirmed]
+
+
+def is_incomplete_assessment_result(
+    report: AssessmentReport | None,
+    route: QuestionnaireRoute | None,
+) -> bool:
+    """Identify a deliberate gap run that produced no authorized Finding."""
+
+    return bool(
+        report is not None
+        and st.session_state.get("assessment_run_mode") == RUN_MODE_WITH_GAPS
+        and not authorized_findings(report, route)
+    )
 
 
 def clear_mismatched_report(
@@ -368,6 +439,8 @@ def clear_mismatched_report(
         return report
     st.session_state.assessment_report = None
     st.session_state.selected_finding_id = None
+    st.session_state.assessment_run_mode = None
+    st.session_state.assessment_run_route = None
     if st.session_state.get("assessment_view") in (VIEW_RESULTS, VIEW_EVIDENCE):
         st.session_state.assessment_view = (
             VIEW_WORKSPACE if case_id is not None else VIEW_LANDING
@@ -610,6 +683,8 @@ def render_sidebar(
             unsafe_allow_html=True,
         )
         current_view = st.session_state.get("assessment_view", VIEW_LANDING)
+        run_route = st.session_state.get("assessment_run_route")
+        incomplete_result = is_incomplete_assessment_result(report, run_route)
         if st.button(
             t("navigation.assessment", language),
             use_container_width=True,
@@ -633,7 +708,7 @@ def render_sidebar(
         if st.button(
             t("navigation.evidence_trace", language),
             use_container_width=True,
-            disabled=report is None,
+            disabled=report is None or incomplete_result,
             type="primary" if current_view == VIEW_EVIDENCE else "secondary",
         ):
             navigate(VIEW_EVIDENCE)
@@ -716,6 +791,8 @@ def render_sidebar(
                 "</div>",
                 unsafe_allow_html=True,
             )
+        if assessment_complete and incomplete_result:
+            st.caption(t("progress.assessment.incomplete", language))
         st.progress(
             sum(complete for _, _, complete in statuses) / len(statuses)
         )
@@ -996,6 +1073,11 @@ def _module_framework_label(module_id: str, language: str) -> str:
     return framework_label(module_definition(module_id).framework, language)
 
 
+def _module_boundary_note(module_id: str, language: str) -> str | None:
+    key = module_definition(module_id).boundary_note_key
+    return t(key, language) if key else None
+
+
 def _provenance() -> list[FactProvenance]:
     records = st.session_state.get("assessment_fact_provenance", [])
     return [record for record in records if isinstance(record, FactProvenance)]
@@ -1031,9 +1113,12 @@ def _store_fact_update(
     provenance = [
         record
         for record in provenance
-        if (value := resolve_fact(updated_facts, record.fact_path)) is not None
-        and value is not TriState.UNKNOWN
-        and value is not UseDomain.UNKNOWN
+        if record.response_state is QuestionResponseState.EXPLICIT_UNKNOWN
+        or (
+            (value := resolve_fact(updated_facts, record.fact_path)) is not None
+            and value is not TriState.UNKNOWN
+            and value is not UseDomain.UNKNOWN
+        )
     ]
     st.session_state.assessment_fact_provenance = provenance
     invalidated_modules = frozenset(invalidation.invalidated_module_ids)
@@ -1060,6 +1145,14 @@ def _store_fact_update(
             if widget_key not in pending_resets:
                 pending_resets.append(widget_key)
         st.session_state.assessment_pending_widget_resets = pending_resets
+    invalidated_questions = frozenset(invalidation.invalidated_question_ids)
+    st.session_state.assessment_edit_question_ids = [
+        question_id
+        for question_id in st.session_state.get(
+            "assessment_edit_question_ids", []
+        )
+        if question_id not in invalidated_questions
+    ]
     current_questionnaire_route(updated_facts)
     return bundle
 
@@ -1080,7 +1173,7 @@ def _render_universal_intake(
     notice = st.session_state.get("assessment_fact_save_notice")
     if notice:
         if notice == "normalization.saved_unknown":
-            st.warning(t(notice, language))
+            st.info(t(notice, language))
         else:
             st.success(t(notice, language))
         st.session_state.assessment_fact_save_notice = None
@@ -1135,11 +1228,7 @@ def _render_universal_intake(
                 )
             )
         elif normalization_preview.status is NormalizationStatus.AMBIGUOUS:
-            st.warning(t("normalization.ambiguous", language))
-            confirm_ambiguous_task = st.checkbox(
-                t("normalization.confirm_original", language),
-                key="assessment_confirm_ambiguous_task",
-            )
+            st.info(t("normalization.ambiguous", language))
         materially_influences = st.selectbox(
             _question_label("INTAKE-DECISION-IMPACT", language),
             options=tri_states,
@@ -1310,37 +1399,92 @@ def _decline_module(module_id: str) -> None:
     if module_id not in declined:
         declined.append(module_id)
     st.session_state.assessment_declined_modules = declined
+    st.session_state.assessment_fact_provenance = [
+        record
+        for record in _provenance()
+        if record.module_id != module_id
+    ]
+    module_question_ids = frozenset(module_definition(module_id).question_ids)
+    st.session_state.assessment_edit_question_ids = [
+        question_id
+        for question_id in st.session_state.get(
+            "assessment_edit_question_ids", []
+        )
+        if question_id not in module_question_ids
+    ]
     clear_assessment_output()
 
 
-def _render_question_widget(question, facts, language: str, *, key_prefix: str):
+def _render_question_widget(
+    question,
+    facts,
+    language: str,
+    *,
+    key_prefix: str,
+    explicitly_answered: bool = False,
+):
     definition = question_definition(question.question_id)
     label = _question_label(question.question_id, language)
     help_text = _question_help(question.question_id, language)
     current = current_answer(facts, question)
     key = f"{key_prefix}::{question.question_id}"
     if question.answer_type is AnswerType.TRI_STATE:
-        options = [option.value for option in question.options]
-        value = current if current in options else TriState.UNKNOWN.value
+        authored_options = [option.value for option in question.options]
+        options = [UNANSWERED_WIDGET_VALUE, *authored_options]
+        value = (
+            current
+            if current in authored_options
+            and (
+                current != TriState.UNKNOWN.value
+                or explicitly_answered
+            )
+            else UNANSWERED_WIDGET_VALUE
+        )
         return st.selectbox(
             label,
             options=options,
             index=options.index(value),
-            format_func=lambda option: t(f"value.{option}", language),
+            format_func=lambda option: (
+                t("value.not_answered", language)
+                if option == UNANSWERED_WIDGET_VALUE
+                else t(f"value.{option}", language)
+            ),
             help=help_text,
             key=key,
         )
     if question.answer_type is AnswerType.SINGLE_CHOICE:
-        options = [option.value for option in question.options]
-        value = current if current in options else options[0]
+        authored_options = [option.value for option in question.options]
+        options = [UNANSWERED_WIDGET_VALUE, *authored_options]
+        value = (
+            current
+            if current in authored_options
+            else (
+                authored_options[0]
+                if explicitly_answered
+                else UNANSWERED_WIDGET_VALUE
+            )
+        )
         return st.selectbox(
             label,
             options=options,
             index=options.index(value),
-            format_func=lambda option: t_or(
-                next(item.label for item in question.options if item.value == option),
-                option,
-                language,
+            format_func=lambda option: (
+                t("value.not_answered", language)
+                if option == UNANSWERED_WIDGET_VALUE
+                else question_option_label(
+                    question.question_id,
+                    option,
+                    language,
+                )
+                or t_or(
+                    next(
+                        item.label
+                        for item in question.options
+                        if item.value == option
+                    ),
+                    option,
+                    language,
+                )
             ),
             help=help_text,
             key=key,
@@ -1383,8 +1527,43 @@ def _render_routed_follow_ups(
         for question in route.next_questions
         if not question_definition(question.question_id).universal
     ]
+    recorded_unknown_ids = list(route.recorded_unknown_question_ids)
+    editing_ids = [
+        question_id
+        for question_id in st.session_state.get(
+            "assessment_edit_question_ids", []
+        )
+        if question_id in recorded_unknown_ids
+    ]
+    follow_up_ids = {question.question_id for question in follow_ups}
+    for question_id in editing_ids:
+        if question_id not in follow_up_ids:
+            follow_ups.append(question_definition(question_id).as_question())
+            follow_up_ids.add(question_id)
+    if recorded_unknown_ids:
+        for question_id in recorded_unknown_ids:
+            label_column, action_column = st.columns([4, 1])
+            label_column.markdown(
+                f"**{escape(_question_label(question_id, language))}**  "
+                f"\n{escape(t('questionnaire.response.recorded_unknown', language))}"
+            )
+            if action_column.button(
+                t("questionnaire.response.edit", language),
+                key=f"edit_answer::{question_id}",
+                disabled=question_id in editing_ids,
+                use_container_width=True,
+            ):
+                st.session_state.assessment_edit_question_ids = [
+                    *editing_ids,
+                    question_id,
+                ]
+                clear_assessment_output()
+                st.rerun()
     if not follow_ups:
-        st.caption(t("questionnaire.followups.none", language))
+        if recorded_unknown_ids:
+            st.info(t("questionnaire.followups.unresolved_unknown", language))
+        else:
+            st.caption(t("questionnaire.followups.none", language))
         return
     render_section_header(
         t("questionnaire.followups.title", language),
@@ -1398,6 +1577,9 @@ def _render_routed_follow_ups(
                 facts,
                 language,
                 key_prefix="assessment_question",
+                explicitly_answered=(
+                    question.question_id in recorded_unknown_ids
+                ),
             )
         submitted = st.form_submit_button(
             t("questionnaire.followups.save", language),
@@ -1409,6 +1591,14 @@ def _render_routed_follow_ups(
     updated_facts = deepcopy(facts)
     provenance_updates: list[FactProvenance] = []
     for question in follow_ups:
+        answer_value = answers[question.question_id]
+        if answer_value == UNANSWERED_WIDGET_VALUE:
+            continue
+        if (
+            question.answer_type is AnswerType.TEXT
+            and (not isinstance(answer_value, str) or not answer_value.strip())
+        ):
+            continue
         owners = [
             module_id
             for module_id in route.confirmed_modules
@@ -1417,10 +1607,14 @@ def _render_routed_follow_ups(
         provenance_updates.extend(
             apply_question_answers(
                 updated_facts,
-                [QuestionnaireAnswer(question.question_id, answers[question.question_id])],
+                [QuestionnaireAnswer(question.question_id, answer_value)],
                 module_id=owners[0] if len(owners) == 1 else None,
+                record_explicit_unknown=True,
             )
         )
+    if not provenance_updates:
+        st.info(t("questionnaire.followups.no_changes", language))
+        return
     _store_fact_update(
         bundle,
         case_id,
@@ -1431,6 +1625,14 @@ def _render_routed_follow_ups(
     st.session_state.assessment_fact_save_notice = (
         "questionnaire.followups.saved"
     )
+    submitted_question_ids = {
+        record.question_id for record in provenance_updates
+    }
+    st.session_state.assessment_edit_question_ids = [
+        question_id
+        for question_id in editing_ids
+        if question_id not in submitted_question_ids
+    ]
     st.rerun()
 
 
@@ -1459,6 +1661,8 @@ def _render_module_routing(
             f"**{escape(_module_label(module_id, language))}**  "
             f"\n{escape(_module_framework_label(module_id, language))}"
         )
+        if boundary_note := _module_boundary_note(module_id, language):
+            st.caption(boundary_note)
         reasons = route.routing_reasons.get(module_id, [])
         with st.expander(t("questionnaire.why_suggested", language), expanded=False):
             for reason in reasons:
@@ -1489,6 +1693,8 @@ def _render_module_routing(
             f"**{escape(_module_label(module_id, language))}**  "
             f"\n{escape(_module_framework_label(module_id, language))}"
         )
+        if boundary_note := _module_boundary_note(module_id, language):
+            label_column.caption(boundary_note)
         if action_column.button(
             t("questionnaire.remove", language),
             key=f"remove_module::{module_id}",
@@ -1501,7 +1707,6 @@ def _render_module_routing(
         manual = st.multiselect(
             t("questionnaire.manual.label", language),
             options=list(IMPLEMENTED_MODULE_IDS),
-            default=[],
             format_func=lambda value: _module_label(value, language),
             key="assessment_manual_modules_widget",
         )
@@ -1589,25 +1794,39 @@ def render_assessment_action(
     confirmed_modules = list(
         st.session_state.get("assessment_confirmed_modules", [])
     )
+    facts = bundle.case_service.get_case(case_id).current_facts
+    route = current_questionnaire_route(facts)
+    unresolved_fact_paths = confirmed_missing_fact_paths(route)
+    has_confirmed_modules = bool(confirmed_modules)
+    has_information_gaps = bool(unresolved_fact_paths)
     if not confirmed_modules:
         st.info(t("assessment.confirm_module_first", language))
-    if st.button(
+    run_normal = st.button(
         t("assessment.run", language),
         type="primary",
         use_container_width=True,
-        disabled=not confirmed_modules,
-    ):
-        full_facts = bundle.case_service.get_case(case_id).current_facts
-        execution_facts = execution_facts_for_modules(
-            full_facts,
-            confirmed_modules,
+        disabled=not has_confirmed_modules or has_information_gaps,
+    )
+    run_with_gaps = False
+    if has_confirmed_modules and has_information_gaps:
+        run_with_gaps = st.button(
+            t("assessment.run_with_gaps", language),
+            type="secondary",
+            use_container_width=True,
+        )
+    if run_normal or run_with_gaps:
+        authorized_rule_ids = authorized_rule_ids_for_modules(
+            route.confirmed_modules,
         )
         with st.spinner(t("assessment.running", language)):
-            bundle.case_service.update_facts(case_id, execution_facts)
-            try:
-                st.session_state.assessment_report = bundle.workflow.run(case_id)
-            finally:
-                bundle.case_service.update_facts(case_id, full_facts)
+            st.session_state.assessment_report = bundle.workflow.run(
+                case_id,
+                rule_ids=authorized_rule_ids,
+            )
+        st.session_state.assessment_run_mode = (
+            RUN_MODE_WITH_GAPS if run_with_gaps else RUN_MODE_COMPLETE
+        )
+        st.session_state.assessment_run_route = deepcopy(route)
         st.session_state.selected_finding_id = None
         st.session_state.assessment_view = VIEW_RESULTS
         st.rerun()
@@ -1725,7 +1944,14 @@ def render_result_finding_card(
 
         st.markdown(f'### {t("evidence.summary.title", language)}')
         if not bound_evidence:
-            st.info(t("evidence.none", language))
+            st.info(
+                t(
+                    "evidence.pending_binding"
+                    if finding.legal_basis
+                    else "evidence.none",
+                    language,
+                )
+            )
         else:
             citation_groups = group_evidence_by_citation(bound_evidence)
             st.markdown(
@@ -1831,43 +2057,188 @@ def render_audit_evidence_card(
         st.code(evidence.evidence_id, language=None)
 
 
-def render_report(report: AssessmentReport, facts, language: str) -> None:
-    """Present structured assessment results without evidence duplication."""
+def scoped_report_missing_information(
+    report: AssessmentReport,
+    route: QuestionnaireRoute,
+) -> list:
+    """Limit presentation gaps to current requirements of confirmed modules."""
 
-    render_section_header(
-        t("report.title", language),
-        eyebrow=t("report.eyebrow", language),
-        description=t("report.copy", language),
+    required_by_rule = {
+        module_id: frozenset(route.missing_fact_paths.get(module_id, []))
+        for module_id in route.confirmed_modules
+    }
+    return [
+        item
+        for item in report.missing_information
+        if item.rule_id in required_by_rule
+        and item.fact_path in required_by_rule[item.rule_id]
+    ]
+
+
+def render_incomplete_assessment(
+    report: AssessmentReport,
+    facts,
+    route: QuestionnaireRoute,
+    language: str,
+) -> None:
+    """Present a deliberate gap run without implying a legal conclusion."""
+
+    module_gaps = tuple(
+        gap
+        for gap in confirmed_module_gaps(route, facts)
+        if gap.unresolved or gap.blocked
+    )
+    unresolved_count = sum(gap.unresolved_count for gap in module_gaps)
+    frameworks = list(
+        dict.fromkeys(
+            module_definition(gap.module_id).framework for gap in module_gaps
+        )
     )
     framework_names = ", ".join(
-        framework_label(framework, language)
-        for framework in report.assessed_frameworks
+        framework_label(framework, language) for framework in frameworks
     ) or t("report.no_framework", language)
+
+    st.warning(t("assessment.status.with_gaps", language))
+    render_section_header(
+        t("incomplete.title", language),
+        eyebrow=t("incomplete.eyebrow", language),
+        description=t("incomplete.summary", language),
+    )
     st.markdown(
-        '<div class="ui-report-context">'
-        f'<span>{count_text("report.findings", len(report.findings), language)}</span>'
-        f'<span>{count_text("report.evidence", len(report.evidence), language)}</span>'
-        f'<span>{count_text("report.gaps", len(report.missing_information), language)}</span>'
+        '<div class="ui-report-context" data-assessment-state="incomplete">'
+        f'<span>{count_text("report.gaps", unresolved_count, language)}</span>'
         f'<span>{framework_names}</span>'
         "</div>",
         unsafe_allow_html=True,
     )
 
-    primary_findings, _ = ordered_findings_for_presentation(report.findings)
+    for gap in module_gaps:
+        st.markdown(f"### {_module_label(gap.module_id, language)}")
+        if boundary_note := _module_boundary_note(gap.module_id, language):
+            st.caption(boundary_note)
+        st.markdown(f"#### {t('incomplete.unresolved.title', language)}")
+        for item in gap.unresolved:
+            st.markdown(f"**{escape(_question_label(item.question_id, language))}**")
+            st.caption(
+                t(
+                    "incomplete.recorded_answer"
+                    if item.recorded_unknown
+                    else "incomplete.awaiting_answer",
+                    language,
+                )
+            )
+        if gap.blocked:
+            st.markdown(f"#### {t('incomplete.blocked.title', language)}")
+            st.caption(t("incomplete.blocked.copy", language))
+            for item in gap.blocked:
+                st.markdown(f"- {escape(_question_label(item.question_id, language))}")
+
+    st.info(t("incomplete.evidence", language))
+
+    first_gap = next(
+        (
+            (gap.module_id, item.question_id)
+            for gap in module_gaps
+            for item in gap.unresolved
+        ),
+        (AI_ACT_PRODUCT_SAFETY_RULE_ID, None),
+    )
+    edit_column, return_column, later_column = st.columns(3)
+    if edit_column.button(
+        t("incomplete.edit", language),
+        type="primary",
+        use_container_width=True,
+    ):
+        module_id, question_id = first_gap
+        if question_id is not None:
+            editing = list(
+                st.session_state.get("assessment_edit_question_ids", [])
+            )
+            if question_id not in editing:
+                editing.append(question_id)
+            st.session_state.assessment_edit_question_ids = editing
+        st.session_state.assessment_focus_module_id = module_id
+        st.session_state.assessment_focus_question_id = question_id
+        navigate(VIEW_WORKSPACE)
+    if return_column.button(
+        t("incomplete.return", language),
+        use_container_width=True,
+    ):
+        module_id, question_id = first_gap
+        st.session_state.assessment_focus_module_id = module_id
+        st.session_state.assessment_focus_question_id = question_id
+        navigate(VIEW_WORKSPACE)
+    if later_column.button(
+        t("incomplete.later", language),
+        use_container_width=True,
+    ):
+        navigate(VIEW_LANDING)
+
+
+def render_report(
+    report: AssessmentReport,
+    facts,
+    route: QuestionnaireRoute,
+    language: str,
+) -> None:
+    """Present structured assessment results without evidence duplication."""
+
+    if st.session_state.get("assessment_run_mode") == RUN_MODE_WITH_GAPS:
+        st.warning(t("assessment.status.with_gaps", language))
+    else:
+        st.success(t("assessment.status.generated", language))
+    render_section_header(
+        t("report.title", language),
+        eyebrow=t("report.eyebrow", language),
+        description=t("report.copy", language),
+    )
+    report_findings = authorized_findings(report, route)
+    scoped_missing = scoped_report_missing_information(report, route)
+    confirmed_frameworks = list(
+        dict.fromkeys(
+            module_definition(module_id).framework
+            for module_id in route.confirmed_modules
+        )
+    )
+    authorized_finding_ids = {
+        finding.finding_id for finding in report_findings
+    }
+    authorized_evidence_ids = {
+        evidence_id
+        for binding in report.evidence_bindings
+        if binding.finding_id in authorized_finding_ids
+        for evidence_id in binding.evidence_refs
+    }
+    framework_names = ", ".join(
+        framework_label(framework, language)
+        for framework in confirmed_frameworks
+    ) or t("report.no_framework", language)
+    st.markdown(
+        '<div class="ui-report-context">'
+        f'<span>{count_text("report.findings", len(report_findings), language)}</span>'
+        f'<span>{count_text("report.evidence", len(authorized_evidence_ids), language)}</span>'
+        f'<span>{count_text("report.gaps", len(scoped_missing), language)}</span>'
+        f'<span>{framework_names}</span>'
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    primary_findings, _ = ordered_findings_for_presentation(report_findings)
     primary_findings = prioritize_selected_finding(
         primary_findings,
         st.session_state.get("selected_finding_id"),
     )
-    primary_frameworks = {
-        finding.framework for finding in primary_findings
+    primary_finding_ids = {
+        finding.finding_id for finding in primary_findings
     }
+    primary_rule_ids = {finding.rule_id for finding in primary_findings}
     primary_missing_information = [
         item
-        for item in report.missing_information
-        if item.framework in primary_frameworks
+        for item in scoped_missing
+        if item.rule_id in primary_rule_ids
     ]
     render_section_header(t("report.findings.title", language))
-    if not primary_findings:
+    if not report_findings:
         st.info(t("report.no_finding", language))
     for finding in primary_findings:
         render_result_finding_card(
@@ -1896,10 +2267,34 @@ def render_report(report: AssessmentReport, facts, language: str) -> None:
         for recommendation in primary_recommendations:
             render_recommendation(recommendation, scope="primary")
 
+    secondary_findings = [
+        finding
+        for finding in report_findings
+        if finding.finding_id not in primary_finding_ids
+    ]
+    secondary_missing_information = [
+        item
+        for item in scoped_missing
+        if item.rule_id not in primary_rule_ids
+    ]
+    confirmed_rule_ids = frozenset(route.confirmed_modules)
+    secondary_failures = [
+        failure
+        for failure in report.execution_failures
+        if failure.rule_id in confirmed_rule_ids
+        and failure.rule_id not in primary_rule_ids
+    ]
     other_frameworks = [
         framework
-        for framework in report.assessed_frameworks
-        if framework not in primary_frameworks
+        for framework in confirmed_frameworks
+        if any(
+            item.framework is framework
+            for item in (
+                *secondary_findings,
+                *secondary_missing_information,
+                *secondary_failures,
+            )
+        )
     ]
     if other_frameworks:
         with st.expander(t("framework_screens.title", language), expanded=False):
@@ -1907,17 +2302,17 @@ def render_report(report: AssessmentReport, facts, language: str) -> None:
             for framework in other_frameworks:
                 framework_findings = [
                     finding
-                    for finding in report.findings
+                    for finding in secondary_findings
                     if finding.framework is framework
                 ]
                 framework_missing = [
                     item
-                    for item in report.missing_information
+                    for item in secondary_missing_information
                     if item.framework is framework
                 ]
                 framework_failures = [
                     failure
-                    for failure in report.execution_failures
+                    for failure in secondary_failures
                     if failure.framework is framework
                 ]
                 status_key = framework_screen_status_key(
@@ -1970,9 +2365,9 @@ def render_report(report: AssessmentReport, facts, language: str) -> None:
             engine=report.engine_version,
             generated=report.generated_at.isoformat(),
         ))
-        if report.missing_information:
+        if scoped_missing:
             st.caption(t("technical.raw_missing", language))
-            for item in report.missing_information:
+            for item in scoped_missing:
                 st.code(item.fact_path, language=None)
         if report.recommendations:
             st.caption(t("technical.raw_recommendations", language))
@@ -2208,7 +2603,14 @@ def render_compliance_chain(
         t("trace.evidence.copy", language),
     )
     if not bound_evidence:
-        st.info(t("trace.evidence.none", language))
+        st.info(
+            t(
+                "trace.evidence.pending_binding"
+                if finding.legal_basis
+                else "trace.evidence.none",
+                language,
+            )
+        )
     for citation, records in group_evidence_by_citation(bound_evidence):
         st.markdown(
             '<section class="ui-evidence-group">'
@@ -2327,12 +2729,22 @@ def main() -> None:
         return
 
     facts = bundle.case_service.get_case(case_id).current_facts
+    run_route = st.session_state.get("assessment_run_route")
+    if not isinstance(run_route, QuestionnaireRoute):
+        run_route = current_questionnaire_route(facts)
+    incomplete_result = is_incomplete_assessment_result(report, run_route)
     if view == VIEW_RESULTS:
-        render_report(report, facts, language)
+        if incomplete_result:
+            render_incomplete_assessment(report, facts, run_route, language)
+        else:
+            render_report(report, facts, run_route, language)
         return
 
     if view == VIEW_EVIDENCE:
-        render_evidence_workspace(report, facts, language)
+        if incomplete_result:
+            render_incomplete_assessment(report, facts, run_route, language)
+        else:
+            render_evidence_workspace(report, facts, language)
         return
 
     st.session_state.assessment_view = VIEW_LANDING

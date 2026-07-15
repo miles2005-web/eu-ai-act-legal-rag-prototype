@@ -106,6 +106,81 @@ _MAPPINGS = (
         fact_updates=(("data_act.data_generated", TriState.YES),),
     ),
     PhraseMapping(
+        "ai_act.product_safety_component.v1",
+        (
+            "ai safety component",
+            "product safety component",
+            "safety component",
+            "安全部件人工智能",
+            "ai 安全部件",
+            "安全部件",
+        ),
+    ),
+    PhraseMapping(
+        "ai_act.regulated_ai_product.v1",
+        (
+            "ai itself is a regulated product",
+            "ai system is a regulated product",
+            "ai 本身属于受监管产品",
+            "ai 系统本身是受监管产品",
+        ),
+    ),
+    PhraseMapping(
+        "ai_act.product_safety_context.v1",
+        (
+            "industrial product safety",
+            "machinery product safety",
+            "industrial robot",
+            "safety function",
+            "emergency stop",
+            "automatic stop",
+            "trigger stop",
+            "protective control",
+            "工业产品安全",
+            "机械产品安全",
+            "工业机器人",
+            "安全功能",
+            "人员受伤",
+            "紧急制动",
+            "自动停止",
+            "触发停止",
+            "安全控制",
+            "产品安全",
+        ),
+    ),
+    PhraseMapping(
+        "ai_act.medical_device_context.v1",
+        (
+            "medical device ai",
+            "ai medical device",
+            "医疗器械 ai",
+            "ai 医疗器械",
+        ),
+    ),
+    PhraseMapping(
+        "ai_act.regulated_equipment_context.v1",
+        (
+            "regulated equipment",
+            "regulated industrial equipment",
+            "受监管设备",
+            "受监管工业设备",
+        ),
+    ),
+    PhraseMapping(
+        "ai_act.conformity_assessment.v1",
+        (
+            "third-party conformity assessment",
+            "independent conformity assessment",
+            "conformity assessment",
+            "third party assessment",
+            "independent third party",
+            "第三方合格评定",
+            "独立合格评定",
+            "合格评定",
+            "独立第三方",
+        ),
+    ),
+    PhraseMapping(
         "gdpr.personal_data.v1",
         (
             "处理个人数据",
@@ -160,11 +235,31 @@ _NEGATION_PATTERN = re.compile(
 )
 
 
+def _normalize_matching_text(value: str) -> str:
+    """Normalize punctuation and spacing without fuzzy or semantic inference."""
+
+    normalized = re.sub(r"[^\w\u3400-\u9fff]+", " ", value.casefold())
+    return " ".join(normalized.split())
+
+
+def _contains_controlled_phrase(normalized_text: str, phrase: str) -> bool:
+    """Match one authored phrase, tolerating punctuation and Chinese spacing."""
+
+    normalized_phrase = _normalize_matching_text(phrase)
+    if not normalized_phrase:
+        return False
+    if normalized_phrase in normalized_text:
+        return True
+    if _CHINESE_PATTERN.search(normalized_phrase):
+        return normalized_phrase.replace(" ", "") in normalized_text.replace(" ", "")
+    return False
+
+
 def normalize_legal_input(text: str | None) -> NormalizationResult:
     """Map controlled phrases without probabilistic inference."""
 
     original = "" if text is None else str(text)
-    normalized = " ".join(original.casefold().split())
+    normalized = _normalize_matching_text(original)
     if not normalized:
         return NormalizationResult(
             original_text=original,
@@ -174,7 +269,10 @@ def normalize_legal_input(text: str | None) -> NormalizationResult:
     matched = [
         mapping
         for mapping in _MAPPINGS
-        if any(phrase.casefold() in normalized for phrase in mapping.phrases)
+        if any(
+            _contains_controlled_phrase(normalized, phrase)
+            for phrase in mapping.phrases
+        )
     ]
     if matched and _NEGATION_PATTERN.search(normalized):
         return NormalizationResult(

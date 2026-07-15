@@ -12,6 +12,10 @@ from src.assessment.facts import UseDomain
 from src.assessment.findings import FindingStatus
 from src.assessment.frameworks import RegulatoryFramework
 from src.assessment.models import TriState
+from src.assessment.questionnaire import QuestionResponseState
+from src.assessment.questionnaire.definitions import (
+    AI_ACT_PRODUCT_SAFETY_RULE_ID,
+)
 from src.ui.styles import ENTERPRISE_STYLES
 
 
@@ -117,6 +121,530 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         self.assertIn("ui-system-summary", workspace_markup)
         self.assertIn("ForgeMonitor AI", workspace_markup)
         self.assertIn("Technical details", [item.label for item in app.expander])
+
+    def test_product_safety_module_uses_confirmed_bilingual_questionnaire(self) -> None:
+        instrument_id = "ANNEX_I_A_01_MACHINERY_DIRECTIVE_2006_42_EC"
+        app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
+        app.text_input[0].set_value("Machinery safety controller")
+        app.text_area[0].set_value("Article 6(1) product-safety screening")
+        next(button for button in app.button if button.label == "Create case").click()
+        app.run(timeout=10)
+
+        app.selectbox[0].set_value(UseDomain.PRODUCT_SAFETY)
+        next(button for button in app.button if button.label == "Save facts").click()
+        app.run(timeout=10)
+
+        route = app.session_state["assessment_questionnaire_route"]
+        self.assertIn(AI_ACT_PRODUCT_SAFETY_RULE_ID, route.suggested_modules)
+        self.assertNotIn(
+            AI_ACT_PRODUCT_SAFETY_RULE_ID,
+            app.session_state["assessment_confirmed_modules"],
+        )
+        self.assertTrue(
+            next(
+                button
+                for button in app.button
+                if button.label == "Run assessment"
+            ).disabled
+        )
+        boundary_text = "\n".join(
+            [item.value for item in app.markdown]
+            + [item.value for item in app.caption]
+        )
+        self.assertIn("only the Article 6(1)", boundary_text)
+
+        next(
+            button for button in app.button if button.label == "Confirm module"
+        ).click()
+        app.run(timeout=10)
+        next(
+            select
+            for select in app.selectbox
+            if select.label.startswith("Is the AI system itself")
+        ).set_value("yes")
+        next(
+            button
+            for button in app.button
+            if button.label == "Save follow-up answers"
+        ).click()
+        app.run(timeout=10)
+
+        next(
+            item
+            for item in app.text_input
+            if item.label == "What type of product is involved?"
+        ).set_value("industrial machinery")
+        next(
+            button
+            for button in app.button
+            if button.label == "Save follow-up answers"
+        ).click()
+        app.run(timeout=10)
+
+        instrument_select = next(
+            select
+            for select in app.selectbox
+            if select.label.startswith("Which Annex I")
+        )
+        self.assertTrue(
+            any("Directive 2006/42/EC" in option for option in instrument_select.options)
+        )
+        self.assertNotIn(instrument_id, instrument_select.options)
+
+        app.radio[0].set_value("zh-CN")
+        app.run(timeout=10)
+        self.assertIn(
+            AI_ACT_PRODUCT_SAFETY_RULE_ID,
+            app.session_state["assessment_confirmed_modules"],
+        )
+        chinese_instrument_select = next(
+            select for select in app.selectbox if select.label.startswith("哪一项附件 I")
+        )
+        self.assertTrue(
+            any("机械指令" in option for option in chinese_instrument_select.options)
+        )
+        self.assertNotIn(instrument_id, chinese_instrument_select.options)
+        chinese_instrument_select.set_value(instrument_id)
+        next(
+            button for button in app.button if button.label == "保存补充回答"
+        ).click()
+        app.run(timeout=10)
+        facts = app.session_state["assessment_workflow_bundle"].case_service.get_case(
+            app.session_state["assessment_case_id"]
+        ).current_facts
+        self.assertEqual(facts.product_regulation.annex_i_instrument, instrument_id)
+
+        next(
+            select for select in app.selectbox if "所选附件 I 法规" in select.label
+        ).set_value("yes")
+        next(
+            button for button in app.button if button.label == "保存补充回答"
+        ).click()
+        app.run(timeout=10)
+        next(
+            select for select in app.selectbox if "独立第三方" in select.label
+        ).set_value("yes")
+        next(
+            button for button in app.button if button.label == "保存补充回答"
+        ).click()
+        app.run(timeout=10)
+
+        route = app.session_state["assessment_questionnaire_route"]
+        self.assertEqual(route.missing_fact_paths[AI_ACT_PRODUCT_SAFETY_RULE_ID], [])
+        next(button for button in app.button if button.label == "运行评估").click()
+        app.run(timeout=10)
+        report = app.session_state["assessment_report"]
+        finding = next(
+            item
+            for item in report.findings
+            if item.rule_id == AI_ACT_PRODUCT_SAFETY_RULE_ID
+        )
+        self.assertIs(finding.status, FindingStatus.POTENTIALLY_APPLIES)
+        self.assertEqual(report.evidence, [])
+        self.assertEqual(report.evidence_bindings, [])
+        self.assertTrue(
+            any(
+                "尚未为该规则绑定原子官方原文证据" in item.value
+                for item in app.info
+            )
+        )
+        next(button for button in app.button if button.label == "证据链").click()
+        app.run(timeout=10)
+        self.assertEqual(app.session_state["assessment_view"], "evidence")
+        self.assertTrue(
+            any(
+                "尚未为该规则绑定原子官方原文证据" in item.value
+                for item in app.info
+            )
+        )
+
+    def test_explicit_unknown_is_recorded_without_repeating_question(self) -> None:
+        app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
+        app.text_input[0].set_value("Unresolved product relationship")
+        app.text_area[0].set_value("Explicit Unknown response regression")
+        next(button for button in app.button if button.label == "Create case").click()
+        app.run(timeout=10)
+        app.selectbox[0].set_value(UseDomain.PRODUCT_SAFETY)
+        next(button for button in app.button if button.label == "Save facts").click()
+        app.run(timeout=10)
+        next(
+            button for button in app.button if button.label == "Confirm module"
+        ).click()
+        app.run(timeout=10)
+
+        product_question = next(
+            select
+            for select in app.selectbox
+            if select.label.startswith("Is the AI system itself")
+        )
+        self.assertEqual(product_question.value, "__unanswered__")
+        product_question.set_value("unknown")
+        next(
+            button
+            for button in app.button
+            if button.label == "Save follow-up answers"
+        ).click()
+        app.run(timeout=10)
+
+        route = app.session_state["assessment_questionnaire_route"]
+        self.assertEqual(
+            route.recorded_unknown_question_ids,
+            ["AI-ACT-6-1-AI-IS-PRODUCT"],
+        )
+        self.assertIn(
+            "product_regulation.ai_is_product",
+            route.missing_fact_paths["AI_ACT_HIGH_RISK_PRODUCT_SAFETY"],
+        )
+        self.assertEqual(self._progress_state(app, "facts"), "pending")
+        self.assertNotIn(
+            "Is the AI system itself a product placed on the market or put into service?",
+            [select.label for select in app.selectbox],
+        )
+        self.assertIn(
+            "Is the AI system intended to perform a safety function as part of a product?",
+            [select.label for select in app.selectbox],
+        )
+        self.assertIn(
+            "Recorded: Unknown",
+            "\n".join(item.value for item in app.markdown),
+        )
+        response_record = next(
+            record
+            for record in app.session_state["assessment_fact_provenance"]
+            if record.question_id == "AI-ACT-6-1-AI-IS-PRODUCT"
+        )
+        self.assertIs(
+            response_record.response_state,
+            QuestionResponseState.EXPLICIT_UNKNOWN,
+        )
+
+        app.radio[0].set_value("zh-CN")
+        app.run(timeout=10)
+        self.assertIn(
+            "已记录：未知",
+            "\n".join(item.value for item in app.markdown),
+        )
+        self.assertEqual(
+            app.session_state["assessment_questionnaire_route"]
+            .recorded_unknown_question_ids,
+            ["AI-ACT-6-1-AI-IS-PRODUCT"],
+        )
+        app.radio[0].set_value("en")
+        app.run(timeout=10)
+
+        run_button = next(
+            button for button in app.button if button.label == "Run assessment"
+        )
+        self.assertTrue(run_button.disabled)
+        next(
+            button
+            for button in app.button
+            if button.label == "Run with information gaps"
+        ).click()
+        app.run(timeout=10)
+        report = app.session_state["assessment_report"]
+        self.assertEqual(report.findings, [])
+        self.assertTrue(
+            any(
+                item.rule_id == "AI_ACT_HIGH_RISK_PRODUCT_SAFETY"
+                and item.fact_path == "product_regulation.ai_is_product"
+                for item in report.missing_information
+            )
+        )
+        self.assertTrue(
+            any("Assessment incomplete" in item.value for item in app.markdown)
+        )
+        self.assertFalse(
+            any("Report generated" in item.value for item in app.success)
+        )
+
+        next(button for button in app.button if button.label == "Assessment").click()
+        app.run(timeout=10)
+        next(button for button in app.button if button.label == "Edit answer").click()
+        app.run(timeout=10)
+        edited_question = next(
+            select
+            for select in app.selectbox
+            if select.label.startswith("Is the AI system itself")
+        )
+        self.assertEqual(edited_question.value, "unknown")
+        edited_question.set_value("yes")
+        next(
+            button
+            for button in app.button
+            if button.label == "Save follow-up answers"
+        ).click()
+        app.run(timeout=10)
+        route = app.session_state["assessment_questionnaire_route"]
+        self.assertEqual(route.recorded_unknown_question_ids, [])
+        facts = app.session_state["assessment_workflow_bundle"].case_service.get_case(
+            app.session_state["assessment_case_id"]
+        ).current_facts
+        self.assertIs(facts.product_regulation.ai_is_product, TriState.YES)
+        self.assertIn(
+            "What type of product is involved?",
+            [item.label for item in app.text_input],
+        )
+
+    def test_removing_module_discards_explicit_unknown_response_state(self) -> None:
+        app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
+        app.text_input[0].set_value("Removable product module")
+        app.text_area[0].set_value("Module response-state invalidation")
+        next(button for button in app.button if button.label == "Create case").click()
+        app.run(timeout=10)
+        app.selectbox[0].set_value(UseDomain.PRODUCT_SAFETY)
+        next(button for button in app.button if button.label == "Save facts").click()
+        app.run(timeout=10)
+        next(
+            button for button in app.button if button.label == "Confirm module"
+        ).click()
+        app.run(timeout=10)
+        next(
+            select
+            for select in app.selectbox
+            if select.label.startswith("Is the AI system itself")
+        ).set_value("unknown")
+        next(
+            button
+            for button in app.button
+            if button.label == "Save follow-up answers"
+        ).click()
+        app.run(timeout=10)
+        self.assertTrue(
+            any(
+                record.response_state is QuestionResponseState.EXPLICIT_UNKNOWN
+                for record in app.session_state["assessment_fact_provenance"]
+            )
+        )
+
+        next(button for button in app.button if button.label == "Remove").click()
+        app.run(timeout=10)
+
+        self.assertNotIn(
+            "AI_ACT_HIGH_RISK_PRODUCT_SAFETY",
+            app.session_state["assessment_confirmed_modules"],
+        )
+        self.assertFalse(
+            any(
+                record.module_id == "AI_ACT_HIGH_RISK_PRODUCT_SAFETY"
+                and record.response_state
+                is QuestionResponseState.EXPLICIT_UNKNOWN
+                for record in app.session_state["assessment_fact_provenance"]
+            )
+        )
+        self.assertIsNone(app.session_state["assessment_report"])
+
+    def test_explicit_unknown_annex_instrument_blocks_dependent_questions(self) -> None:
+        instrument_id = "ANNEX_I_A_01_MACHINERY_DIRECTIVE_2006_42_EC"
+        app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
+        app.text_input[0].set_value("Unknown product legislation")
+        app.text_area[0].set_value("Annex I dependency regression")
+        next(button for button in app.button if button.label == "Create case").click()
+        app.run(timeout=10)
+        app.selectbox[0].set_value(UseDomain.PRODUCT_SAFETY)
+        next(button for button in app.button if button.label == "Save facts").click()
+        app.run(timeout=10)
+        next(
+            button for button in app.button if button.label == "Confirm module"
+        ).click()
+        app.run(timeout=10)
+        next(
+            select
+            for select in app.selectbox
+            if select.label.startswith("Is the AI system itself")
+        ).set_value("yes")
+        next(
+            button
+            for button in app.button
+            if button.label == "Save follow-up answers"
+        ).click()
+        app.run(timeout=10)
+        next(
+            item
+            for item in app.text_input
+            if item.label == "What type of product is involved?"
+        ).set_value("industrial machinery")
+        next(
+            button
+            for button in app.button
+            if button.label == "Save follow-up answers"
+        ).click()
+        app.run(timeout=10)
+        next(
+            select
+            for select in app.selectbox
+            if select.label.startswith("Which Annex I")
+        ).set_value("ANNEX_I_INSTRUMENT_UNKNOWN")
+        next(
+            button
+            for button in app.button
+            if button.label == "Save follow-up answers"
+        ).click()
+        app.run(timeout=10)
+
+        route = app.session_state["assessment_questionnaire_route"]
+        self.assertEqual(
+            route.recorded_unknown_question_ids,
+            ["AI-ACT-6-1-ANNEX-I-INSTRUMENT"],
+        )
+        labels = [select.label for select in app.selectbox]
+        self.assertNotIn(
+            "Which Annex I product legislation may cover the product?",
+            labels,
+        )
+        self.assertFalse(any("confirmed as applying" in label for label in labels))
+        self.assertFalse(any("independent third party" in label for label in labels))
+        self.assertTrue(
+            any("module remains unresolved" in item.value for item in app.info)
+        )
+        self.assertEqual(self._progress_state(app, "facts"), "pending")
+
+        primary_run = next(
+            button for button in app.button if button.label == "Run assessment"
+        )
+        self.assertTrue(primary_run.disabled)
+        gap_run = next(
+            button
+            for button in app.button
+            if button.label == "Run with information gaps"
+        )
+        self.assertFalse(gap_run.disabled)
+        gap_run.click()
+        app.run(timeout=10)
+
+        report = app.session_state["assessment_report"]
+        self.assertEqual(report.findings, [])
+        self.assertEqual(len(report.missing_information), 2)
+        self.assertEqual(
+            {item.rule_id for item in report.missing_information},
+            {AI_ACT_PRODUCT_SAFETY_RULE_ID},
+        )
+        self.assertEqual(
+            {item.fact_path for item in report.missing_information},
+            {
+                "product_regulation.annex_i_instrument",
+                "product_regulation.annex_i_instrument_confirmed",
+            },
+        )
+        self.assertEqual(
+            report.authorized_rule_ids,
+            [AI_ACT_PRODUCT_SAFETY_RULE_ID],
+        )
+        self.assertEqual(
+            report.assessed_frameworks,
+            [RegulatoryFramework.EU_AI_ACT],
+        )
+        self.assertEqual(app.session_state["assessment_run_mode"], "with_gaps")
+        incomplete_markup = next(
+            item.value
+            for item in app.markdown
+            if 'data-assessment-state="incomplete"' in item.value
+        )
+        self.assertIn("1 information gap", incomplete_markup)
+        self.assertIn("EU AI Act", incomplete_markup)
+        self.assertNotIn("GDPR", incomplete_markup)
+        self.assertNotIn("EU Data Act", incomplete_markup)
+        page_markup = "\n".join(item.value for item in app.markdown)
+        self.assertIn("Assessment incomplete", page_markup)
+        self.assertIn(
+            "Has the selected Annex I legislation been confirmed as applying",
+            page_markup,
+        )
+        self.assertIn(
+            "Must an independent third party assess conformity",
+            page_markup,
+        )
+        self.assertFalse(
+            any("Report generated" in item.value for item in app.success)
+        )
+        self.assertFalse(
+            any("atomic official source Evidence" in item.value for item in app.info)
+        )
+        evidence_button = next(
+            button for button in app.button if button.label == "Evidence trace"
+        )
+        self.assertTrue(evidence_button.disabled)
+        self.assertEqual(self._progress_state(app, "facts"), "pending")
+        self.assertEqual(self._progress_state(app, "assessment"), "complete")
+        self.assertTrue(
+            {
+                "Edit unresolved answer",
+                "Return to Article 6(1) questions",
+                "Continue assessment later",
+            }.issubset({button.label for button in app.button})
+        )
+
+        next(
+            button
+            for button in app.button
+            if button.label == "Edit unresolved answer"
+        ).click()
+        app.run(timeout=10)
+        self.assertEqual(app.session_state["assessment_view"], "workspace")
+        instrument_select = next(
+            select
+            for select in app.selectbox
+            if select.label.startswith("Which Annex I")
+        )
+        self.assertEqual(instrument_select.value, "ANNEX_I_INSTRUMENT_UNKNOWN")
+        instrument_select.set_value(instrument_id)
+        next(
+            button
+            for button in app.button
+            if button.label == "Save follow-up answers"
+        ).click()
+        app.run(timeout=10)
+
+        self.assertIsNone(app.session_state["assessment_report"])
+        self.assertIsNone(app.session_state["assessment_run_mode"])
+        self.assertIsNone(app.session_state["assessment_run_route"])
+        self.assertTrue(
+            any("confirmed as applying" in select.label for select in app.selectbox)
+        )
+        next(
+            select
+            for select in app.selectbox
+            if "confirmed as applying" in select.label
+        ).set_value("yes")
+        next(
+            button
+            for button in app.button
+            if button.label == "Save follow-up answers"
+        ).click()
+        app.run(timeout=10)
+        next(
+            select
+            for select in app.selectbox
+            if "independent third party" in select.label
+        ).set_value("yes")
+        next(
+            button
+            for button in app.button
+            if button.label == "Save follow-up answers"
+        ).click()
+        app.run(timeout=10)
+
+        primary_run = next(
+            button for button in app.button if button.label == "Run assessment"
+        )
+        self.assertFalse(primary_run.disabled)
+        self.assertFalse(
+            any(
+                button.label == "Run with information gaps"
+                for button in app.button
+            )
+        )
+        primary_run.click()
+        app.run(timeout=10)
+        finding = next(
+            item
+            for item in app.session_state["assessment_report"].findings
+            if item.rule_id == AI_ACT_PRODUCT_SAFETY_RULE_ID
+        )
+        self.assertIs(finding.status, FindingStatus.POTENTIALLY_APPLIES)
+        self.assertTrue(
+            any("Report generated" in item.value for item in app.success)
+        )
 
     def test_predefined_demo_content_localizes_without_mutating_facts(self) -> None:
         app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
@@ -240,7 +768,7 @@ class AssessmentAppSmokeTests(unittest.TestCase):
             ["AI_ACT_HIGH_RISK_EMPLOYMENT", "GDPR_ARTICLE22_RELEVANCE"],
         )
 
-    def test_ambiguous_chinese_task_requires_confirmation_and_stays_unknown(self) -> None:
+    def test_unmatched_chinese_task_is_informational_context_only(self) -> None:
         app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
         next(
             button
@@ -252,9 +780,18 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         app.text_area[0].set_value(original_text)
         app.run(timeout=10)
 
-        self.assertIn(
+        self.assertNotIn(
             "Confirm the original text as the task description without legal classification",
             [checkbox.label for checkbox in app.checkbox],
+        )
+        self.assertTrue(
+            any(
+                "No controlled scenario was automatically identified" in item.value
+                for item in app.info
+            )
+        )
+        self.assertFalse(
+            any("controlled expression" in item.value for item in app.warning)
         )
         next(
             button for button in app.button if button.label == "Save facts"
@@ -270,6 +807,43 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         self.assertEqual(metadata["original_text"], original_text)
         self.assertEqual(metadata["status"], "ambiguous")
         self.assertFalse(metadata["ambiguous_text_confirmed"])
+
+    def test_structured_product_route_uses_info_for_unmatched_free_text(self) -> None:
+        app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
+        app.text_input[0].set_value("Factory safety assistant")
+        app.text_area[0].set_value("Structured routing message regression")
+        next(button for button in app.button if button.label == "Create case").click()
+        app.run(timeout=10)
+
+        app.selectbox[0].set_value(UseDomain.PRODUCT_SAFETY)
+        original_text = "这是一个用于生产现场的辅助系统"
+        app.text_area[0].set_value(original_text)
+        next(button for button in app.button if button.label == "Save facts").click()
+        app.run(timeout=10)
+
+        route = app.session_state["assessment_questionnaire_route"]
+        self.assertIn("AI_ACT_HIGH_RISK_PRODUCT_SAFETY", route.suggested_modules)
+        self.assertEqual(
+            app.session_state["assessment_input_normalization"]["original_text"],
+            original_text,
+        )
+        facts = app.session_state["assessment_workflow_bundle"].case_service.get_case(
+            app.session_state["assessment_case_id"]
+        ).current_facts
+        self.assertIsNone(facts.use_context.task)
+        self.assertIn(
+            original_text,
+            "\n".join(item.value for item in app.markdown),
+        )
+        self.assertTrue(
+            any(
+                "No controlled scenario was automatically identified" in item.value
+                for item in app.info
+            )
+        )
+        self.assertFalse(
+            any("controlled expression" in item.value for item in app.warning)
+        )
 
     def test_custom_loan_routes_gdpr_and_exposes_unsupported_ai_act_path(self) -> None:
         app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
@@ -336,6 +910,11 @@ class AssessmentAppSmokeTests(unittest.TestCase):
             [finding.rule_id for finding in report.findings],
             ["GDPR_ARTICLE22_RELEVANCE"],
         )
+        self.assertEqual(
+            report.authorized_rule_ids,
+            ["GDPR_ARTICLE22_RELEVANCE"],
+        )
+        self.assertEqual(report.missing_information, [])
         self.assertEqual(
             report.findings[0].status,
             FindingStatus.POTENTIALLY_APPLIES,
@@ -410,12 +989,33 @@ class AssessmentAppSmokeTests(unittest.TestCase):
             route.missing_fact_paths["GDPR_ARTICLE22_RELEVANCE"],
         )
         self.assertEqual(self._progress_state(app, "facts"), "pending")
-        next(button for button in app.button if button.label == "Run assessment").click()
+        self.assertTrue(
+            next(
+                button
+                for button in app.button
+                if button.label == "Run assessment"
+            ).disabled
+        )
+        next(
+            button
+            for button in app.button
+            if button.label == "Run with information gaps"
+        ).click()
         app.run(timeout=10)
 
         self.assertIsNotNone(app.session_state["assessment_report"])
+        self.assertEqual(app.session_state["assessment_run_mode"], "with_gaps")
         self.assertEqual(self._progress_state(app, "facts"), "pending")
         self.assertEqual(self._progress_state(app, "assessment"), "complete")
+        self.assertTrue(
+            any("Assessment incomplete" in item.value for item in app.markdown)
+        )
+        self.assertTrue(
+            any(
+                "Run completed without a substantive finding" in item.value
+                for item in app.caption
+            )
+        )
 
     def test_domain_change_invalidates_employment_answers_and_stale_report(self) -> None:
         app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
@@ -448,6 +1048,28 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         self.assertIsNone(app.session_state["selected_finding_id"])
         self.assertEqual(app.session_state["ui_language"], "zh-CN")
         self.assertIsNot(bundle, original_bundle)
+
+    def test_module_removal_invalidates_report_and_execution_fingerprint(self) -> None:
+        app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
+        self._open_recruitment_report(app)
+        bundle = app.session_state["assessment_workflow_bundle"]
+        report = app.session_state["assessment_report"]
+        previous_run = bundle.workflow.get_run(report.assessment_run_reference)
+
+        next(button for button in app.button if button.label == "Assessment").click()
+        app.run(timeout=10)
+        next(button for button in app.button if button.label == "Remove").click()
+        app.run(timeout=10)
+
+        self.assertEqual(app.session_state["assessment_confirmed_modules"], [])
+        self.assertIsNone(app.session_state["assessment_report"])
+        self.assertNotEqual(
+            previous_run.input_fingerprint,
+            bundle.workflow.input_fingerprint(
+                app.session_state["assessment_case_id"],
+                rule_ids=(),
+            ),
+        )
 
     def test_unsupported_judicial_case_does_not_activate_formal_module(self) -> None:
         app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
@@ -520,6 +1142,16 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         report = app.session_state["assessment_report"]
         self.assertEqual(report.findings[0].status, FindingStatus.POTENTIALLY_APPLIES)
         self.assertEqual(report.findings[0].rule_id, "AI_ACT_HIGH_RISK_EMPLOYMENT")
+        self.assertEqual(
+            [finding.rule_id for finding in report.findings],
+            ["AI_ACT_HIGH_RISK_EMPLOYMENT"],
+        )
+        self.assertEqual(
+            report.authorized_rule_ids,
+            ["AI_ACT_HIGH_RISK_EMPLOYMENT"],
+        )
+        self.assertEqual(report.missing_information, [])
+        self.assertEqual(len(report.evidence), 7)
         self.assertNotIn(
             "EU_DATA_ACT",
             {evidence.legal_source for evidence in report.evidence},
@@ -679,12 +1311,18 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         self._open_recruitment_report(app)
         report = app.session_state["assessment_report"]
         report_snapshot = report.to_dict()
+        run_fingerprint = app.session_state[
+            "assessment_workflow_bundle"
+        ].workflow.get_run(report.assessment_run_reference).input_fingerprint
 
         english_markup = "\n".join(item.value for item in app.markdown)
         self.assertNotIn("ui-primary-missing", english_markup)
-        self.assertIn("Personal data processing", english_markup)
-        self.assertIn("Connected product", english_markup)
-        self.assertIn("Other framework screens", [item.label for item in app.expander])
+        self.assertNotIn("Personal data processing", english_markup)
+        self.assertNotIn("Connected product", english_markup)
+        self.assertNotIn(
+            "Other framework screens",
+            [item.label for item in app.expander],
+        )
         self.assertNotIn(
             "AIA_HIGH_RISK_EMPLOYMENT_PRELIMINARY",
             "\n".join(
@@ -703,33 +1341,25 @@ class AssessmentAppSmokeTests(unittest.TestCase):
             for item in app.markdown
             if "ui-primary-" in item.value
         )
-        framework_markup = "\n".join(
-            item.value
-            for item in app.markdown
-            if "ui-framework-" in item.value
-        )
         self.assertNotIn("ui-primary-missing", primary_markup)
         self.assertIn("就业领域高风险初步分类", primary_markup)
         self.assertNotIn("data_act.", primary_markup)
         self.assertNotIn("data_protection.", primary_markup)
         self.assertNotIn("AIA_HIGH_RISK_EMPLOYMENT_PRELIMINARY", primary_markup)
-        self.assertIn("个人数据处理", framework_markup)
-        self.assertIn("自动化个人决策", framework_markup)
-        self.assertIn("互联产品", framework_markup)
-        self.assertIn("相关服务", framework_markup)
-        self.assertIn("产品或相关服务生成数据", framework_markup)
-        self.assertEqual(
-            framework_markup.count('class="ui-framework-missing"'),
-            len(report.missing_information),
-        )
-        self.assertIn("其他框架筛查", [item.label for item in app.expander])
+        self.assertNotIn("其他框架筛查", [item.label for item in app.expander])
         raw_code = {item.value for item in app.code}
         self.assertTrue(
-            {item.fact_path for item in report.missing_information}.issubset(raw_code)
+            {item.fact_path for item in report.missing_information}.isdisjoint(raw_code)
         )
         self.assertIn("AIA_HIGH_RISK_EMPLOYMENT_PRELIMINARY", raw_code)
         self.assertNotIn("data_act.connected_product", chinese_markup)
         self.assertEqual(app.session_state["assessment_report"].to_dict(), report_snapshot)
+        self.assertEqual(
+            app.session_state["assessment_workflow_bundle"].workflow.get_run(
+                report.assessment_run_reference
+            ).input_fingerprint,
+            run_fingerprint,
+        )
 
     def test_demo_switch_isolates_state_and_industrial_primary_finding(self) -> None:
         app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
@@ -796,6 +1426,12 @@ class AssessmentAppSmokeTests(unittest.TestCase):
             set(findings_by_rule),
             {"EU_DATA_ACT_RELEVANCE"},
         )
+        self.assertEqual(
+            report.authorized_rule_ids,
+            ["EU_DATA_ACT_RELEVANCE"],
+        )
+        self.assertEqual(report.missing_information, [])
+        self.assertEqual(len(report.evidence), 3)
         data_act_finding = findings_by_rule["EU_DATA_ACT_RELEVANCE"]
         self.assertEqual(
             data_act_finding.framework,
@@ -847,7 +1483,7 @@ class AssessmentAppSmokeTests(unittest.TestCase):
             1,
         )
         self.assertIn("可能涉及《欧盟数据法案》", result_markup)
-        self.assertIn("其他框架筛查", [item.label for item in app.expander])
+        self.assertNotIn("其他框架筛查", [item.label for item in app.expander])
         self.assertNotIn("ui-primary-missing", result_markup)
         self.assertNotIn(
             "use_context.domain",

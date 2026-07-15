@@ -18,6 +18,13 @@ class FactConditionOperator(str, Enum):
     IN = "in"
 
 
+class QuestionResponseState(str, Enum):
+    """Inspectable state for a persisted questionnaire response."""
+
+    ANSWERED = "answered"
+    EXPLICIT_UNKNOWN = "explicit_unknown"
+
+
 @dataclass(frozen=True, slots=True)
 class LocalizedTextKeys(SerializableModel):
     """Translation catalogue keys for one bilingual question or message."""
@@ -58,12 +65,15 @@ class QuestionInvalidation(SerializableModel):
     """Facts that may become stale when the owning answer changes."""
 
     fact_paths: tuple[str, ...]
+    preserve_explicitly_confirmed: bool = False
 
     def __post_init__(self) -> None:
         if not self.fact_paths:
             raise ValueError("fact_paths must not be empty")
         if any(not isinstance(path, str) or not path.strip() for path in self.fact_paths):
             raise ValueError("fact_paths must contain non-empty strings")
+        if not isinstance(self.preserve_explicitly_confirmed, bool):
+            raise TypeError("preserve_explicitly_confirmed must be a bool")
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +86,7 @@ class RoutingQuestionDefinition(SerializableModel):
     text_keys: LocalizedTextKeys
     options: tuple[QuestionOption, ...] = ()
     dependencies: tuple[QuestionDependency, ...] = ()
+    any_dependencies: tuple[QuestionDependency, ...] = ()
     invalidations: tuple[QuestionInvalidation, ...] = ()
     universal: bool = False
 
@@ -92,6 +103,13 @@ class RoutingQuestionDefinition(SerializableModel):
             raise TypeError("options must contain QuestionOption values")
         if any(not isinstance(item, QuestionDependency) for item in self.dependencies):
             raise TypeError("dependencies must contain QuestionDependency values")
+        if any(
+            not isinstance(item, QuestionDependency)
+            for item in self.any_dependencies
+        ):
+            raise TypeError(
+                "any_dependencies must contain QuestionDependency values"
+            )
         if any(not isinstance(item, QuestionInvalidation) for item in self.invalidations):
             raise TypeError("invalidations must contain QuestionInvalidation values")
         if not isinstance(self.universal, bool):
@@ -174,6 +192,8 @@ class RuleQuestionnaireDefinition(SerializableModel):
     eligibility_groups: tuple[EligibilityHintGroup, ...] = ()
     dependency_metadata: tuple[QuestionDependency, ...] = ()
     unsupported_path_ids: tuple[str, ...] = ()
+    supplemental_question_ids: tuple[str, ...] = ()
+    boundary_note_key: str | None = None
 
     def __post_init__(self) -> None:
         for field_name in (
@@ -218,6 +238,18 @@ class RuleQuestionnaireDefinition(SerializableModel):
             raise TypeError(
                 "dependency_metadata must contain QuestionDependency values"
             )
+        if any(
+            not isinstance(value, str) or not value.strip()
+            for value in self.supplemental_question_ids
+        ):
+            raise ValueError(
+                "supplemental_question_ids must contain non-empty strings"
+            )
+        if self.boundary_note_key is not None and (
+            not isinstance(self.boundary_note_key, str)
+            or not self.boundary_note_key.strip()
+        ):
+            raise ValueError("boundary_note_key must be non-empty when provided")
 
 
 @dataclass(frozen=True, slots=True)
@@ -263,6 +295,7 @@ class FactProvenance(SerializableModel):
     module_id: str | None = None
     explicitly_confirmed: bool = False
     depends_on: tuple[str, ...] = ()
+    response_state: QuestionResponseState = QuestionResponseState.ANSWERED
 
     def __post_init__(self) -> None:
         for field_name in ("fact_path", "question_id"):
@@ -273,6 +306,8 @@ class FactProvenance(SerializableModel):
             raise ValueError("module_id must be non-empty when provided")
         if not isinstance(self.explicitly_confirmed, bool):
             raise TypeError("explicitly_confirmed must be a bool")
+        if not isinstance(self.response_state, QuestionResponseState):
+            raise TypeError("response_state must be a QuestionResponseState")
         if any(not isinstance(path, str) or not path for path in self.depends_on):
             raise ValueError("depends_on must contain non-empty strings")
 
@@ -290,6 +325,7 @@ class QuestionnaireRoute(SerializableModel):
     module_confirmation_question_ids: list[str] = field(default_factory=list)
     ordered_step_ids: list[str] = field(default_factory=list)
     routing_reasons: dict[str, list[str]] = field(default_factory=dict)
+    recorded_unknown_question_ids: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)

@@ -15,15 +15,23 @@ from src.assessment.facts import (
     UseDomain,
 )
 from src.assessment.models import TriState
+from src.assessment.product_regulation import load_annex_i_instrument_catalog
 from src.assessment.questionnaire.definitions import (
     AI_ACT_EMPLOYMENT_RULE_ID,
+    AI_ACT_PRODUCT_SAFETY_RULE_ID,
+    ANNEX_I_UNKNOWN_OPTION,
     EU_DATA_ACT_RULE_ID,
     GDPR_ARTICLE22_RULE_ID,
     HINT_CANDIDATE_RANKING,
     HINT_CREDIT_DECISION,
     HINT_INDIVIDUAL_SIGNIFICANT_DECISION,
     HINT_INDUSTRIAL_CONNECTED_EQUIPMENT,
+    HINT_CONFORMITY_ASSESSMENT,
+    HINT_MEDICAL_DEVICE_CONTEXT,
     HINT_PRODUCT_SAFETY_COMPONENT,
+    HINT_PRODUCT_SAFETY_CONTEXT,
+    HINT_REGULATED_AI_PRODUCT,
+    HINT_REGULATED_EQUIPMENT_CONTEXT,
     HINT_RECRUITMENT,
     HINT_SELECTION,
     HINT_WORKER_MANAGEMENT,
@@ -32,8 +40,11 @@ from src.assessment.questionnaire.definitions import (
     question_definitions_by_id,
 )
 from src.assessment.questionnaire.models import AnswerType, Question
-from src.assessment.questionnaire.routing_models import FactProvenance
-from src.assessment.questionnaire.routing_models import QuestionnaireRoute
+from src.assessment.questionnaire.routing_models import (
+    FactProvenance,
+    QuestionnaireRoute,
+    QuestionResponseState,
+)
 
 
 UNIVERSAL_INTAKE_QUESTION_IDS = (
@@ -57,6 +68,11 @@ ROUTING_HINT_IDS = (
     HINT_CREDIT_DECISION,
     HINT_INDUSTRIAL_CONNECTED_EQUIPMENT,
     HINT_PRODUCT_SAFETY_COMPONENT,
+    HINT_REGULATED_AI_PRODUCT,
+    HINT_PRODUCT_SAFETY_CONTEXT,
+    HINT_MEDICAL_DEVICE_CONTEXT,
+    HINT_REGULATED_EQUIPMENT_CONTEXT,
+    HINT_CONFORMITY_ASSESSMENT,
 )
 
 IMPLEMENTED_MODULE_IDS = tuple(
@@ -83,7 +99,16 @@ _NORMALIZATION_HINTS = {
     "gdpr.significant_effect.v1": HINT_INDIVIDUAL_SIGNIFICANT_DECISION,
     "decision.credit.v1": HINT_CREDIT_DECISION,
     "data_act.connected_product.v1": HINT_INDUSTRIAL_CONNECTED_EQUIPMENT,
+    "ai_act.product_safety_component.v1": HINT_PRODUCT_SAFETY_COMPONENT,
+    "ai_act.regulated_ai_product.v1": HINT_REGULATED_AI_PRODUCT,
+    "ai_act.product_safety_context.v1": HINT_PRODUCT_SAFETY_CONTEXT,
+    "ai_act.medical_device_context.v1": HINT_MEDICAL_DEVICE_CONTEXT,
+    "ai_act.regulated_equipment_context.v1": HINT_REGULATED_EQUIPMENT_CONTEXT,
+    "ai_act.conformity_assessment.v1": HINT_CONFORMITY_ASSESSMENT,
 }
+
+_ANNEX_I_CATALOG = load_annex_i_instrument_catalog()
+UNANSWERED_WIDGET_VALUE = "__unanswered__"
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +118,28 @@ class QuestionnaireAnswer:
     question_id: str
     value: object
     original_input: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class QuestionGap:
+    """One unresolved or dependency-blocked questionnaire fact."""
+
+    question_id: str
+    fact_path: str
+    recorded_unknown: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ConfirmedModuleGap:
+    """Presentation-safe gaps for one explicitly confirmed module."""
+
+    module_id: str
+    unresolved: tuple[QuestionGap, ...]
+    blocked: tuple[QuestionGap, ...]
+
+    @property
+    def unresolved_count(self) -> int:
+        return len(self.unresolved)
 
 
 def universal_questions() -> tuple[Question, ...]:
@@ -155,17 +202,39 @@ def current_answer(facts: AssessmentFacts, question: Question) -> object:
     return value
 
 
+def question_option_label(
+    question_id: str,
+    option_value: str,
+    language: str,
+) -> str | None:
+    """Return a human label for options with domain-backed identities."""
+
+    definition = question_definition(question_id)
+    if definition.fact_path != "product_regulation.annex_i_instrument":
+        return None
+    if option_value == ANNEX_I_UNKNOWN_OPTION:
+        return None
+    instrument = _ANNEX_I_CATALOG.get(option_value)
+    return (
+        f"{instrument.display_label(language)} — "
+        f"{instrument.canonical_reference}"
+    )
+
+
 def apply_question_answers(
     facts: AssessmentFacts,
     answers: Iterable[QuestionnaireAnswer],
     *,
     module_id: str | None = None,
     explicitly_confirmed: bool = True,
+    record_explicit_unknown: bool = False,
 ) -> list[FactProvenance]:
     """Write canonical questionnaire values and return invalidation provenance."""
 
     if not isinstance(facts, AssessmentFacts):
         raise TypeError("facts must be an AssessmentFacts instance")
+    if not isinstance(record_explicit_unknown, bool):
+        raise TypeError("record_explicit_unknown must be a bool")
     provenance: list[FactProvenance] = []
     for answer in answers:
         definition = question_definition(answer.question_id)
@@ -186,7 +255,17 @@ def apply_question_answers(
                 module_id=owner,
                 explicitly_confirmed=explicitly_confirmed,
                 depends_on=tuple(
-                    dependency.fact_path for dependency in definition.dependencies
+                    dependency.fact_path
+                    for dependency in (
+                        *definition.dependencies,
+                        *definition.any_dependencies,
+                    )
+                ),
+                response_state=(
+                    QuestionResponseState.EXPLICIT_UNKNOWN
+                    if record_explicit_unknown
+                    and _is_missing_canonical_value(canonical_value)
+                    else QuestionResponseState.ANSWERED
                 ),
             )
         )
@@ -273,6 +352,31 @@ def execution_facts_for_modules(
     return execution_facts
 
 
+def authorized_rule_ids_for_modules(
+    confirmed_modules: Iterable[str],
+) -> tuple[str, ...]:
+    """Map confirmed implemented modules to deterministic engine rule IDs."""
+
+    if isinstance(confirmed_modules, (str, bytes)):
+        raise TypeError("confirmed_modules must be an iterable of module IDs")
+    requested = tuple(confirmed_modules)
+    if any(not isinstance(module_id, str) or not module_id for module_id in requested):
+        raise ValueError("confirmed_modules must contain non-empty strings")
+    if len(set(requested)) != len(requested):
+        raise ValueError("confirmed_modules must not contain duplicates")
+    unknown = set(requested).difference(IMPLEMENTED_MODULE_IDS)
+    if unknown:
+        raise ValueError(
+            "unknown confirmed modules: " + ", ".join(sorted(unknown))
+        )
+    selected = frozenset(requested)
+    return tuple(
+        _MODULE_DEFINITIONS[module_id].rule_id
+        for module_id in IMPLEMENTED_MODULE_IDS
+        if module_id in selected
+    )
+
+
 def confirmed_missing_fact_paths(route: QuestionnaireRoute) -> tuple[str, ...]:
     """Return only missing facts owned by explicitly confirmed modules."""
 
@@ -284,6 +388,92 @@ def confirmed_missing_fact_paths(route: QuestionnaireRoute) -> tuple[str, ...]:
             if fact_path not in missing:
                 missing.append(fact_path)
     return tuple(missing)
+
+
+def confirmed_module_gaps(
+    route: QuestionnaireRoute,
+    facts: AssessmentFacts,
+) -> tuple[ConfirmedModuleGap, ...]:
+    """Separate actionable missing facts from dependency-blocked questions.
+
+    The route remains the source of truth for facts currently required by a
+    confirmed rule. Authored dependency metadata is then used only to explain
+    why later questions are not yet available; blocked questions never inflate
+    the unresolved-fact count.
+    """
+
+    if not isinstance(route, QuestionnaireRoute):
+        raise TypeError("route must be a QuestionnaireRoute")
+    if not isinstance(facts, AssessmentFacts):
+        raise TypeError("facts must be an AssessmentFacts instance")
+
+    available_ids = {
+        question.question_id for question in route.next_questions
+    }
+    recorded_unknown_ids = frozenset(route.recorded_unknown_question_ids)
+    summaries: list[ConfirmedModuleGap] = []
+
+    for module_id in route.confirmed_modules:
+        definition = module_definition(module_id)
+        missing_paths = route.missing_fact_paths.get(module_id, [])
+        unresolved: list[QuestionGap] = []
+        blocked: list[QuestionGap] = []
+        classified_ids: set[str] = set()
+
+        for fact_path in missing_paths:
+            question_id = question_id_for_fact_path(fact_path)
+            gap = QuestionGap(
+                question_id=question_id,
+                fact_path=fact_path,
+                recorded_unknown=question_id in recorded_unknown_ids,
+            )
+            if question_id in available_ids or question_id in recorded_unknown_ids:
+                unresolved.append(gap)
+            else:
+                blocked.append(gap)
+            classified_ids.add(question_id)
+
+        dependency_paths = {
+            gap.fact_path for gap in (*unresolved, *blocked)
+        }
+        changed = True
+        while changed:
+            changed = False
+            for question_id in definition.question_ids:
+                if question_id in classified_ids:
+                    continue
+                question_metadata = question_definition(question_id)
+                if not _is_missing_canonical_value(
+                    resolve_fact(facts, question_metadata.fact_path)
+                ):
+                    continue
+                dependencies = (
+                    *question_metadata.dependencies,
+                    *question_metadata.any_dependencies,
+                )
+                if not any(
+                    dependency.fact_path in dependency_paths
+                    for dependency in dependencies
+                ):
+                    continue
+                gap = QuestionGap(
+                    question_id=question_id,
+                    fact_path=question_metadata.fact_path,
+                    recorded_unknown=question_id in recorded_unknown_ids,
+                )
+                blocked.append(gap)
+                classified_ids.add(question_id)
+                dependency_paths.add(question_metadata.fact_path)
+                changed = True
+
+        summaries.append(
+            ConfirmedModuleGap(
+                module_id=module_id,
+                unresolved=tuple(unresolved),
+                blocked=tuple(blocked),
+            )
+        )
+    return tuple(summaries)
 
 
 def required_facts_complete(route: QuestionnaireRoute) -> bool:
@@ -319,6 +509,12 @@ def _coerce_answer(fact_path: str, value: object) -> object:
             item if isinstance(item, AffectedPerson) else AffectedPerson(str(item))
             for item in value
         ]
+    if fact_path == "product_regulation.annex_i_instrument":
+        if value is None or value == ANNEX_I_UNKNOWN_OPTION:
+            return None
+        if not isinstance(value, str):
+            raise TypeError("Annex I instrument selection must be a stable ID")
+        return _ANNEX_I_CATALOG.get(value).instrument_id
     current = resolve_fact(AssessmentFacts(), fact_path)
     if isinstance(current, TriState):
         return value if isinstance(value, TriState) else TriState(str(value))
@@ -330,17 +526,33 @@ def _coerce_answer(fact_path: str, value: object) -> object:
     return value
 
 
+def _is_missing_canonical_value(value: object) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, Enum):
+        return value.value == TriState.UNKNOWN.value
+    if isinstance(value, str):
+        return not value.strip()
+    return False
+
+
 __all__ = [
     "AI_ACT_EMPLOYMENT_RULE_ID",
+    "AI_ACT_PRODUCT_SAFETY_RULE_ID",
+    "ConfirmedModuleGap",
     "EU_DATA_ACT_RULE_ID",
     "GDPR_ARTICLE22_RULE_ID",
     "IMPLEMENTED_MODULE_IDS",
+    "UNANSWERED_WIDGET_VALUE",
     "QuestionnaireAnswer",
+    "QuestionGap",
     "ROUTING_HINT_IDS",
     "UNIVERSAL_INTAKE_QUESTION_IDS",
     "apply_question_answers",
+    "authorized_rule_ids_for_modules",
     "clear_fact_paths",
     "confirmed_missing_fact_paths",
+    "confirmed_module_gaps",
     "current_answer",
     "execution_facts_for_modules",
     "hints_from_normalization",
@@ -350,6 +562,7 @@ __all__ = [
     "modules_for_question",
     "question_definition",
     "question_id_for_fact_path",
+    "question_option_label",
     "remove_provenance",
     "required_facts_complete",
     "resolve_fact",

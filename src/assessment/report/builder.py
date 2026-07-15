@@ -96,6 +96,9 @@ class ReportBuilder:
             assessed_frameworks=deepcopy(
                 assessment_result.assessed_frameworks
             ),
+            authorized_rule_ids=deepcopy(
+                assessment_result.authorized_rule_ids
+            ),
         )
 
     def _build_framework_findings(

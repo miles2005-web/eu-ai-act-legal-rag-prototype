@@ -97,6 +97,10 @@ class ReportBuilderTests(unittest.TestCase):
             first_report.assessed_frameworks,
             [RegulatoryFramework.EU_AI_ACT],
         )
+        self.assertEqual(
+            first_report.authorized_rule_ids,
+            ["AI_ACT_HIGH_RISK_EMPLOYMENT"],
+        )
         self.assertTrue(first_report.recommendations)
         json.dumps(first_report.to_dict())
 

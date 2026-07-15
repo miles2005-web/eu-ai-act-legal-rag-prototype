@@ -16,6 +16,7 @@ from src.assessment.evidence import (
 from src.assessment.report import ReportBuilder
 from src.assessment.rules import (
     AIActHighRiskEmploymentRule,
+    AIActHighRiskProductSafetyRule,
     EUDataActRelevanceRule,
     GDPRArticle22RelevanceRule,
     RuleRegistry,
@@ -29,6 +30,10 @@ DEFAULT_DATA_ACT_CANDIDATE_PATH = (
     / "corpus_builds"
     / "EU_DATA_ACT"
     / "data_act_candidate.json"
+)
+
+_RULES_WITH_PENDING_EVIDENCE_BINDING = frozenset(
+    {"AI_ACT_HIGH_RISK_PRODUCT_SAFETY"}
 )
 
 
@@ -67,6 +72,7 @@ def create_assessment_workflow(
     rule_registry = RuleRegistry(
         [
             AIActHighRiskEmploymentRule(),
+            AIActHighRiskProductSafetyRule(),
             GDPRArticle22RelevanceRule(),
             EUDataActRelevanceRule(),
         ]
@@ -91,6 +97,8 @@ def create_assessment_workflow(
 
     evidence_by_id = {}
     for rule in rule_registry:
+        if rule.rule_id in _RULES_WITH_PENDING_EVIDENCE_BINDING:
+            continue
         for legal_basis in rule.legal_basis:
             for evidence in evidence_retriever.retrieve(
                 legal_basis.instrument,

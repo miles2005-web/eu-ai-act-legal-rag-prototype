@@ -141,6 +141,47 @@ class AssessmentWorkflowServiceTests(unittest.TestCase):
             ["article-6-evidence", "annex-iii-evidence"],
         )
 
+    def test_run_snapshot_fingerprint_includes_rule_scope_and_facts(self) -> None:
+        workflow, case_service = self._build_workflow(
+            facts=self._complete_employment_facts(),
+        )
+
+        employment_scope = ("AI_ACT_HIGH_RISK_EMPLOYMENT",)
+        initial_fingerprint = workflow.input_fingerprint(
+            "case-workflow",
+            rule_ids=employment_scope,
+        )
+        self.assertEqual(
+            initial_fingerprint,
+            workflow.input_fingerprint(
+                "case-workflow",
+                rule_ids=employment_scope,
+            ),
+        )
+        self.assertNotEqual(
+            initial_fingerprint,
+            workflow.input_fingerprint("case-workflow", rule_ids=()),
+        )
+
+        report = workflow.run(
+            "case-workflow",
+            rule_ids=employment_scope,
+        )
+        run = workflow.get_run(report.assessment_run_reference)
+        self.assertEqual(run.authorized_rule_ids, list(employment_scope))
+        self.assertEqual(run.input_fingerprint, initial_fingerprint)
+
+        changed_facts = self._complete_employment_facts()
+        changed_facts.use_context.task = "Changed authorized input"
+        case_service.update_facts("case-workflow", changed_facts)
+        self.assertNotEqual(
+            run.input_fingerprint,
+            workflow.input_fingerprint(
+                "case-workflow",
+                rule_ids=employment_scope,
+            ),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

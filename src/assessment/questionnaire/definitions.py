@@ -7,6 +7,7 @@ from collections.abc import Iterable, Iterator
 from src.assessment.facts import AffectedPerson, AssessmentFacts, UseDomain
 from src.assessment.frameworks import RegulatoryFramework
 from src.assessment.models import TriState
+from src.assessment.product_regulation import load_annex_i_instrument_catalog
 from src.assessment.questionnaire.models import AnswerType, QuestionOption
 from src.assessment.questionnaire.registry import QuestionRegistry
 from src.assessment.questionnaire.routing_models import (
@@ -24,6 +25,7 @@ from src.assessment.rules import AssessmentRule, RuleRegistry
 
 
 AI_ACT_EMPLOYMENT_RULE_ID = "AI_ACT_HIGH_RISK_EMPLOYMENT"
+AI_ACT_PRODUCT_SAFETY_RULE_ID = "AI_ACT_HIGH_RISK_PRODUCT_SAFETY"
 GDPR_ARTICLE22_RULE_ID = "GDPR_ARTICLE22_RELEVANCE"
 EU_DATA_ACT_RULE_ID = "EU_DATA_ACT_RELEVANCE"
 
@@ -35,6 +37,14 @@ HINT_INDIVIDUAL_SIGNIFICANT_DECISION = "decision.individual_significant"
 HINT_CREDIT_DECISION = "decision.credit"
 HINT_INDUSTRIAL_CONNECTED_EQUIPMENT = "data_act.industrial_connected_equipment"
 HINT_PRODUCT_SAFETY_COMPONENT = "ai_act.product_safety_component"
+HINT_REGULATED_AI_PRODUCT = "ai_act.regulated_ai_product"
+HINT_PRODUCT_SAFETY_CONTEXT = "ai_act.product_safety_context"
+HINT_MEDICAL_DEVICE_CONTEXT = "ai_act.medical_device_context"
+HINT_REGULATED_EQUIPMENT_CONTEXT = "ai_act.regulated_equipment_context"
+HINT_CONFORMITY_ASSESSMENT = "ai_act.conformity_assessment"
+
+ANNEX_I_UNKNOWN_OPTION = "ANNEX_I_INSTRUMENT_UNKNOWN"
+_ANNEX_I_CATALOG = load_annex_i_instrument_catalog()
 
 
 def _text_keys(key: str) -> LocalizedTextKeys:
@@ -65,6 +75,22 @@ def _confirmation_options(key: str) -> tuple[QuestionOption, ...]:
         QuestionOption(
             value="deselect",
             label=f"question.{key}.option.deselect",
+        ),
+    )
+
+
+def _annex_i_instrument_options() -> tuple[QuestionOption, ...]:
+    return (
+        QuestionOption(
+            value=ANNEX_I_UNKNOWN_OPTION,
+            label="question.annex_i_instrument.option.unknown",
+        ),
+        *(
+            QuestionOption(
+                value=instrument.instrument_id,
+                label=f"annex_i.instrument.{instrument.instrument_id}",
+            )
+            for instrument in _ANNEX_I_CATALOG.all()
         ),
     )
 
@@ -204,6 +230,147 @@ QUESTION_DEFINITIONS: tuple[RoutingQuestionDefinition, ...] = (
             QuestionDependency("data_act.related_service"),
         ),
     ),
+    RoutingQuestionDefinition(
+        question_id="AI-ACT-6-1-AI-IS-PRODUCT",
+        fact_path="product_regulation.ai_is_product",
+        answer_type=AnswerType.TRI_STATE,
+        text_keys=_text_keys("ai_is_product"),
+        options=_tri_state_options("ai_is_product"),
+        invalidations=(
+            QuestionInvalidation(
+                fact_paths=(
+                    "product_regulation.product_type",
+                    "product_regulation.annex_i_instrument",
+                    "product_regulation.annex_i_instrument_confirmed",
+                    "product_regulation.third_party_conformity_required",
+                )
+            ),
+        ),
+    ),
+    RoutingQuestionDefinition(
+        question_id="AI-ACT-6-1-AI-IS-SAFETY-COMPONENT",
+        fact_path="product_regulation.ai_is_safety_component",
+        answer_type=AnswerType.TRI_STATE,
+        text_keys=_text_keys("ai_is_safety_component"),
+        options=_tri_state_options("ai_is_safety_component"),
+        invalidations=(
+            QuestionInvalidation(
+                fact_paths=(
+                    "product_regulation.product_type",
+                    "product_regulation.annex_i_instrument",
+                    "product_regulation.annex_i_instrument_confirmed",
+                    "product_regulation.third_party_conformity_required",
+                )
+            ),
+        ),
+    ),
+    RoutingQuestionDefinition(
+        question_id="AI-ACT-6-1-PRODUCT-TYPE",
+        fact_path="product_regulation.product_type",
+        answer_type=AnswerType.TEXT,
+        text_keys=_text_keys("product_type"),
+        any_dependencies=(
+            QuestionDependency(
+                "product_regulation.ai_is_product",
+                accepted_values=(TriState.YES.value,),
+            ),
+            QuestionDependency(
+                "product_regulation.ai_is_safety_component",
+                accepted_values=(TriState.YES.value,),
+            ),
+        ),
+        invalidations=(
+            QuestionInvalidation(
+                fact_paths=(
+                    "product_regulation.annex_i_instrument",
+                    "product_regulation.annex_i_instrument_confirmed",
+                    "product_regulation.third_party_conformity_required",
+                ),
+                preserve_explicitly_confirmed=True,
+            ),
+        ),
+    ),
+    RoutingQuestionDefinition(
+        question_id="AI-ACT-6-1-ANNEX-I-INSTRUMENT",
+        fact_path="product_regulation.annex_i_instrument",
+        answer_type=AnswerType.SINGLE_CHOICE,
+        text_keys=_text_keys("annex_i_instrument"),
+        options=_annex_i_instrument_options(),
+        dependencies=(
+            QuestionDependency("product_regulation.product_type"),
+        ),
+        any_dependencies=(
+            QuestionDependency(
+                "product_regulation.ai_is_product",
+                accepted_values=(TriState.YES.value,),
+            ),
+            QuestionDependency(
+                "product_regulation.ai_is_safety_component",
+                accepted_values=(TriState.YES.value,),
+            ),
+        ),
+        invalidations=(
+            QuestionInvalidation(
+                fact_paths=(
+                    "product_regulation.annex_i_instrument_confirmed",
+                    "product_regulation.third_party_conformity_required",
+                )
+            ),
+        ),
+    ),
+    RoutingQuestionDefinition(
+        question_id="AI-ACT-6-1-ANNEX-I-CONFIRMED",
+        fact_path="product_regulation.annex_i_instrument_confirmed",
+        answer_type=AnswerType.TRI_STATE,
+        text_keys=_text_keys("annex_i_instrument_confirmed"),
+        options=_tri_state_options("annex_i_instrument_confirmed"),
+        dependencies=(
+            QuestionDependency("product_regulation.product_type"),
+            QuestionDependency("product_regulation.annex_i_instrument"),
+        ),
+        any_dependencies=(
+            QuestionDependency(
+                "product_regulation.ai_is_product",
+                accepted_values=(TriState.YES.value,),
+            ),
+            QuestionDependency(
+                "product_regulation.ai_is_safety_component",
+                accepted_values=(TriState.YES.value,),
+            ),
+        ),
+        invalidations=(
+            QuestionInvalidation(
+                fact_paths=(
+                    "product_regulation.third_party_conformity_required",
+                )
+            ),
+        ),
+    ),
+    RoutingQuestionDefinition(
+        question_id="AI-ACT-6-1-THIRD-PARTY-CONFORMITY",
+        fact_path="product_regulation.third_party_conformity_required",
+        answer_type=AnswerType.TRI_STATE,
+        text_keys=_text_keys("third_party_conformity_required"),
+        options=_tri_state_options("third_party_conformity_required"),
+        dependencies=(
+            QuestionDependency("product_regulation.product_type"),
+            QuestionDependency("product_regulation.annex_i_instrument"),
+            QuestionDependency(
+                "product_regulation.annex_i_instrument_confirmed",
+                accepted_values=(TriState.YES.value,),
+            ),
+        ),
+        any_dependencies=(
+            QuestionDependency(
+                "product_regulation.ai_is_product",
+                accepted_values=(TriState.YES.value,),
+            ),
+            QuestionDependency(
+                "product_regulation.ai_is_safety_component",
+                accepted_values=(TriState.YES.value,),
+            ),
+        ),
+    ),
 )
 
 
@@ -262,6 +429,108 @@ RULE_QUESTIONNAIRE_DEFINITIONS: tuple[RuleQuestionnaireDefinition, ...] = (
             QuestionDependency("use_context.domain"),
             QuestionDependency("use_context.task"),
         ),
+    ),
+    RuleQuestionnaireDefinition(
+        rule_id=AI_ACT_PRODUCT_SAFETY_RULE_ID,
+        framework=RegulatoryFramework.EU_AI_ACT,
+        display_module_key="module.ai_act.product_safety",
+        confirmation_question_id=(
+            "CONFIRM-MODULE::AI_ACT_HIGH_RISK_PRODUCT_SAFETY"
+        ),
+        confirmation_text_keys=_text_keys("confirm_ai_act_product_safety"),
+        confirmation_answer_type=AnswerType.SINGLE_CHOICE,
+        confirmation_options=_confirmation_options(
+            "confirm_ai_act_product_safety"
+        ),
+        eligibility_fact_paths=(
+            "use_context.domain",
+            "product_regulation.ai_is_product",
+            "product_regulation.ai_is_safety_component",
+            "product_regulation.annex_i_instrument",
+        ),
+        required_fact_paths=(
+            "product_regulation.ai_is_product",
+            "product_regulation.ai_is_safety_component",
+            "product_regulation.annex_i_instrument",
+            "product_regulation.annex_i_instrument_confirmed",
+            "product_regulation.third_party_conformity_required",
+        ),
+        question_ids=(
+            "AI-ACT-6-1-AI-IS-PRODUCT",
+            "AI-ACT-6-1-AI-IS-SAFETY-COMPONENT",
+            "AI-ACT-6-1-PRODUCT-TYPE",
+            "AI-ACT-6-1-ANNEX-I-INSTRUMENT",
+            "AI-ACT-6-1-ANNEX-I-CONFIRMED",
+            "AI-ACT-6-1-THIRD-PARTY-CONFORMITY",
+        ),
+        supplemental_question_ids=("AI-ACT-6-1-PRODUCT-TYPE",),
+        supported_domains=(UseDomain.PRODUCT_SAFETY, UseDomain.OTHER),
+        routing_hints=(
+            HINT_PRODUCT_SAFETY_COMPONENT,
+            HINT_REGULATED_AI_PRODUCT,
+            HINT_PRODUCT_SAFETY_CONTEXT,
+            HINT_MEDICAL_DEVICE_CONTEXT,
+            HINT_REGULATED_EQUIPMENT_CONTEXT,
+            HINT_CONFORMITY_ASSESSMENT,
+        ),
+        eligibility_groups=(
+            EligibilityHintGroup(
+                reason_code="CONFIRMED_PRODUCT_RELATIONSHIP",
+                any_conditions=(
+                    _equals(
+                        "product_regulation.ai_is_product",
+                        TriState.YES.value,
+                    ),
+                    _equals(
+                        "product_regulation.ai_is_safety_component",
+                        TriState.YES.value,
+                    ),
+                ),
+            ),
+            EligibilityHintGroup(
+                reason_code="CONTROLLED_PRODUCT_SAFETY_CONTEXT",
+                any_routing_hints=(
+                    HINT_PRODUCT_SAFETY_COMPONENT,
+                    HINT_REGULATED_AI_PRODUCT,
+                    HINT_PRODUCT_SAFETY_CONTEXT,
+                    HINT_MEDICAL_DEVICE_CONTEXT,
+                    HINT_REGULATED_EQUIPMENT_CONTEXT,
+                    HINT_CONFORMITY_ASSESSMENT,
+                ),
+            ),
+            EligibilityHintGroup(
+                reason_code="PRODUCT_SAFETY_DOMAIN",
+                all_conditions=(
+                    _equals(
+                        "use_context.domain",
+                        UseDomain.PRODUCT_SAFETY.value,
+                    ),
+                ),
+            ),
+            EligibilityHintGroup(
+                reason_code="ANNEX_I_INSTRUMENT_SELECTED",
+                all_conditions=(
+                    FactCondition(
+                        fact_path="product_regulation.annex_i_instrument",
+                        operator=FactConditionOperator.IN,
+                        expected_values=tuple(
+                            instrument.instrument_id
+                            for instrument in _ANNEX_I_CATALOG.all()
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        dependency_metadata=(
+            QuestionDependency("product_regulation.ai_is_product"),
+            QuestionDependency("product_regulation.ai_is_safety_component"),
+            QuestionDependency("product_regulation.product_type"),
+            QuestionDependency("product_regulation.annex_i_instrument"),
+            QuestionDependency(
+                "product_regulation.annex_i_instrument_confirmed"
+            ),
+        ),
+        boundary_note_key="module.ai_act.product_safety.boundary",
     ),
     RuleQuestionnaireDefinition(
         rule_id=GDPR_ARTICLE22_RULE_ID,
@@ -426,24 +695,6 @@ UNSUPPORTED_PATH_DEFINITIONS: tuple[UnsupportedPathDefinition, ...] = (
             ),
         ),
     ),
-    UnsupportedPathDefinition(
-        path_id="AI_ACT_PRODUCT_SAFETY_ROUTE_UNSUPPORTED",
-        framework=RegulatoryFramework.EU_AI_ACT,
-        display_module_key="module.ai_act.product_safety",
-        message_keys=_text_keys("unsupported_ai_act_product_safety"),
-        eligibility_groups=(
-            EligibilityHintGroup(
-                reason_code="CONFIRMED_PRODUCT_SAFETY_COMPONENT_CONTEXT",
-                all_conditions=(
-                    _equals(
-                        "use_context.domain",
-                        UseDomain.PRODUCT_SAFETY.value,
-                    ),
-                ),
-                any_routing_hints=(HINT_PRODUCT_SAFETY_COMPONENT,),
-            ),
-        ),
-    ),
 )
 
 
@@ -480,6 +731,11 @@ class RuleQuestionnaireRegistry:
         self._validate_against_rule(definition, rule)
         for question_id in definition.question_ids:
             self._question_registry.get(question_id)
+        for question_id in definition.supplemental_question_ids:
+            if question_id not in definition.question_ids:
+                raise ValueError(
+                    "supplemental questions must belong to the module"
+                )
         self._definitions[definition.rule_id] = definition
         return definition
 

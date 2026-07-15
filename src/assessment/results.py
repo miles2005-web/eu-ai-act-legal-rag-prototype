@@ -36,3 +36,4 @@ class AssessmentResult(SerializableModel):
     )
     assessment_run_id: str | None = None
     assessed_frameworks: list[RegulatoryFramework] = field(default_factory=list)
+    authorized_rule_ids: list[str] = field(default_factory=list)

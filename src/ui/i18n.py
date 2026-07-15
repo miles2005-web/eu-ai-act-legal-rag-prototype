@@ -36,6 +36,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "progress.case": "Case created",
         "progress.facts": "Required facts provided",
         "progress.assessment": "Assessment completed",
+        "progress.assessment.incomplete": (
+            "Run completed without a substantive finding"
+        ),
         "progress.complete": "Complete",
         "progress.pending": "Pending",
         "landing.eyebrow": "EU compliance intelligence",
@@ -178,15 +181,20 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "Recognized controlled mappings: {mappings}"
         ),
         "normalization.ambiguous": (
-            "This Chinese text does not match a supported controlled expression. "
-            "No canonical legal fact will be inferred."
+            "No controlled scenario was automatically identified from this "
+            "description. The text has been saved as case context; assessment "
+            "modules can still be selected through structured inputs or explicit "
+            "confirmation."
         ),
         "normalization.confirm_original": (
             "Confirm the original text as the task description without legal "
             "classification"
         ),
         "normalization.saved_unknown": (
-            "Original text retained for review; the canonical task remains unknown."
+            "No controlled scenario was automatically identified from this "
+            "description. The text has been saved as case context; assessment "
+            "modules can still be selected through structured inputs or explicit "
+            "confirmation."
         ),
         "assessment.eyebrow": "Step 3",
         "assessment.title": "Run assessment",
@@ -195,7 +203,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "traceable preliminary report."
         ),
         "assessment.run": "Run assessment",
+        "assessment.run_with_gaps": "Run with information gaps",
         "assessment.running": "Running assessment and resolving legal evidence...",
+        "assessment.status.generated": "Report generated",
+        "assessment.status.with_gaps": "Assessment run with information gaps",
         "assessment.required": (
             "Run the assessment before opening results or evidence trace."
         ),
@@ -220,6 +231,30 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "No substantive assessment was produced. Additional facts or an "
             "implemented assessment module are required."
         ),
+        "incomplete.eyebrow": "Preliminary assessment status",
+        "incomplete.title": "Assessment incomplete",
+        "incomplete.summary": (
+            "No substantive legal finding was produced because the confirmed "
+            "assessment module still contains unresolved facts."
+        ),
+        "incomplete.unresolved.title": "Unresolved required facts",
+        "incomplete.blocked.title": (
+            "Downstream questions blocked by the unresolved fact"
+        ),
+        "incomplete.recorded_answer": "Recorded answer: Unknown",
+        "incomplete.awaiting_answer": "Answer not yet provided",
+        "incomplete.blocked.copy": (
+            "These questions were not counted as unanswered omissions because "
+            "their prerequisite facts remain unresolved."
+        ),
+        "incomplete.evidence": (
+            "Evidence binding has not been reached because no substantive "
+            "Finding exists yet. Authored legal references define the module "
+            "scope only; they do not support a nonexistent Finding."
+        ),
+        "incomplete.edit": "Edit unresolved answer",
+        "incomplete.return": "Return to Article 6(1) questions",
+        "incomplete.later": "Continue assessment later",
         "report.screened.one": "Other screened issue ({count})",
         "report.screened.other": "Other screened issues ({count})",
         "report.screened.copy": (
@@ -319,6 +354,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "legal.none": "No legal basis recorded for this finding.",
         "evidence.summary.title": "Evidence summary",
         "evidence.none": "No supporting evidence is currently bound to this finding.",
+        "evidence.pending_binding": (
+            "Legal authorities have been identified for this finding, but atomic "
+            "official source Evidence has not yet been bound for this rule."
+        ),
         "evidence.supporting.one": "{count} supporting record",
         "evidence.supporting.other": "{count} supporting records",
         "evidence.citations.one": "{count} citation represented",
@@ -423,6 +462,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "Atomic, versioned legal excerpts bound to this finding."
         ),
         "trace.evidence.none": "No supporting evidence is bound to this finding.",
+        "trace.evidence.pending_binding": (
+            "Legal authorities have been identified for this finding, but atomic "
+            "official source Evidence has not yet been bound for this rule."
+        ),
         "evidence.official_item": "Official excerpt {number}",
         "evidence.authority": "Authority level",
         "evidence.version": "Document version",
@@ -478,6 +521,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "value.yes": "Yes",
         "value.no": "No",
         "value.unknown": "Unknown",
+        "value.not_answered": "Not answered",
         "value.not_recorded": "Not recorded",
         "value.none_recorded": "None recorded",
         "domain.unknown": "Unknown / not yet provided",
@@ -544,6 +588,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "progress.case": "已创建案例",
         "progress.facts": "已提供必要事实",
         "progress.assessment": "已完成评估",
+        "progress.assessment.incomplete": "本次运行已完成，但未形成实质性法律结论",
         "progress.complete": "完成",
         "progress.pending": "待完成",
         "landing.eyebrow": "欧盟合规智能",
@@ -638,19 +683,24 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "facts.saved": "事实已保存。",
         "normalization.recognized": "已识别受控映射：{mappings}",
         "normalization.ambiguous": (
-            "该中文文本未匹配支持的受控表达，系统不会推断规范化法律事实。"
+            "未从该描述中自动识别受控场景。描述已作为案例信息保存；你仍可通过"
+            "结构化问题或手动确认选择评估模块。"
         ),
         "normalization.confirm_original": (
             "确认仅将原文作为任务描述，不进行法律分类"
         ),
         "normalization.saved_unknown": (
-            "原始文本已保留供审阅，规范化任务事实仍为未知。"
+            "未从该描述中自动识别受控场景。描述已作为案例信息保存；你仍可通过"
+            "结构化问题或手动确认选择评估模块。"
         ),
         "assessment.eyebrow": "第 3 步",
         "assessment.title": "运行评估",
         "assessment.copy": "应用已配置规则、解析法律证据并生成可追溯的初步报告。",
         "assessment.run": "运行评估",
+        "assessment.run_with_gaps": "带信息缺口运行",
         "assessment.running": "正在运行评估并解析法律证据……",
+        "assessment.status.generated": "报告已生成",
+        "assessment.status.with_gaps": "评估已运行，存在信息缺口",
         "assessment.required": "请先运行评估，再打开评估结论或证据链。",
         "assessment.return": "返回评估工作区",
         "app.initialization_error": "无法初始化评估工作流：{error}",
@@ -668,6 +718,25 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "report.no_finding": (
             "尚未形成实质性评估结论。需要补充事实，或当前场景尚需相应的评估模块支持。"
         ),
+        "incomplete.eyebrow": "初步评估状态",
+        "incomplete.title": "评估尚未完成",
+        "incomplete.summary": (
+            "由于已确认的评估模块仍存在未决事实，当前未形成实质性法律结论。"
+        ),
+        "incomplete.unresolved.title": "未决的必要事实",
+        "incomplete.blocked.title": "因未决事实而暂时阻断的后续问题",
+        "incomplete.recorded_answer": "已记录回答：未知",
+        "incomplete.awaiting_answer": "尚未提供回答",
+        "incomplete.blocked.copy": (
+            "这些问题的前置事实仍未解决，因此不会被计为用户遗漏回答。"
+        ),
+        "incomplete.evidence": (
+            "由于尚未形成实质性 Finding，当前尚未进入证据绑定阶段。"
+            "已编写的法律依据仅用于说明模块范围，并非对不存在 Finding 的支持。"
+        ),
+        "incomplete.edit": "编辑未决回答",
+        "incomplete.return": "返回 Article 6(1) 补充问题",
+        "incomplete.later": "稍后继续评估",
         "report.screened.one": "其他已筛查问题（{count}）",
         "report.screened.other": "其他已筛查问题（{count}）",
         "report.screened.copy": "这些规则已执行并保留用于审计，但其筛查条件未满足。",
@@ -743,6 +812,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "legal.none": "该结论未记录法律依据。",
         "evidence.summary.title": "证据概览",
         "evidence.none": "当前没有与该结论绑定的支持证据。",
+        "evidence.pending_binding": (
+            "本结论已生成法律依据，但当前版本尚未为该规则绑定原子官方原文证据。"
+        ),
         "evidence.supporting.one": "{count} 条支持记录",
         "evidence.supporting.other": "{count} 条支持记录",
         "evidence.citations.one": "涉及 {count} 项条款",
@@ -823,6 +895,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "trace.evidence.title": "来源证据",
         "trace.evidence.copy": "与该结论绑定的原子化、版本化法律原文摘录。",
         "trace.evidence.none": "该结论未绑定支持证据。",
+        "trace.evidence.pending_binding": (
+            "本结论已生成法律依据，但当前版本尚未为该规则绑定原子官方原文证据。"
+        ),
         "evidence.official_item": "官方原文摘录 {number}",
         "evidence.authority": "权威层级",
         "evidence.version": "文件版本",
@@ -866,6 +941,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "value.yes": "是",
         "value.no": "否",
         "value.unknown": "未知",
+        "value.not_answered": "尚未回答",
         "value.not_recorded": "未记录",
         "value.none_recorded": "未记录任何项目",
         "domain.unknown": "未知／尚未提供",
@@ -953,6 +1029,76 @@ _ROUTED_QUESTION_COPY = {
         "en": ("Does the product or related service generate data?", "Record whether operational or use data is generated."),
         "zh-CN": ("产品或相关服务是否生成数据？", "请记录是否生成运行数据或使用数据。"),
     },
+    "ai_is_product": {
+        "en": (
+            "Is the AI system itself a product placed on the market or put into service?",
+            "Answer Yes only where the AI system itself is treated as the relevant regulated product.",
+        ),
+        "zh-CN": (
+            "该 AI 系统本身是否作为产品投放市场或投入使用？",
+            "仅当该 AI 系统本身被视为相关受监管产品时选择“是”。",
+        ),
+    },
+    "ai_is_safety_component": {
+        "en": (
+            "Is the AI system intended to perform a safety function as part of a product?",
+            "Monitoring or optimisation alone is insufficient; consider whether it performs a safety function or its failure could endanger people or property.",
+        ),
+        "zh-CN": (
+            "该 AI 系统是否拟作为产品的一部分承担安全功能？",
+            "仅用于监测或优化并不足够；请判断其是否承担安全功能，或其失效是否可能危及人员或财产。",
+        ),
+    },
+    "product_type": {
+        "en": (
+            "What type of product is involved?",
+            "Use a plain-language category such as machinery, medical device, lift, radio equipment or pressure equipment. This does not establish Annex I coverage.",
+        ),
+        "zh-CN": (
+            "涉及哪类产品？",
+            "请使用机械、医疗器械、电梯、无线电设备或压力设备等通俗类别。该回答本身不能确认附件 I 覆盖。",
+        ),
+    },
+    "annex_i_instrument": {
+        "en": (
+            "Which Annex I product legislation may cover the product?",
+            "Select the specific legislation or Unknown. Selection identifies a candidate instrument and does not confirm that it applies.",
+        ),
+        "zh-CN": (
+            "哪一项附件 I 产品法规可能涵盖该产品？",
+            "请选择具体法规或“未知”。选择仅用于识别候选法规，并不确认该法规适用。",
+        ),
+    },
+    "annex_i_instrument_confirmed": {
+        "en": (
+            "Has the selected Annex I legislation been confirmed as applying to this product?",
+            "Confirm coverage separately after reviewing the product law. Selecting an instrument is not confirmation.",
+        ),
+        "zh-CN": (
+            "是否已确认所选附件 I 法规适用于该产品？",
+            "请在核对产品法规后单独确认覆盖范围。选择法规并不等于确认适用。",
+        ),
+    },
+    "third_party_conformity_required": {
+        "en": (
+            "Must an independent third party assess conformity before market placement or putting into service?",
+            "Verify the product-specific route against applicable product law and technical documentation. The catalogue does not answer this question.",
+        ),
+        "zh-CN": (
+            "该产品在投放市场或投入使用前是否必须由独立第三方进行合格评定？",
+            "请结合适用产品法规和技术文件核实具体路径。目录不会自动回答此问题。",
+        ),
+    },
+    "confirm_ai_act_product_safety": {
+        "en": (
+            "Confirm Article 6(1) product-safety screening",
+            "Confirmation enables the implemented module but does not set any legal predicate.",
+        ),
+        "zh-CN": (
+            "确认第 6 条第 1 款产品安全筛查",
+            "确认只会启用已实现模块，不会自动设置任何法律判断事实。",
+        ),
+    },
 }
 
 for _question_key, _localized in _ROUTED_QUESTION_COPY.items():
@@ -989,6 +1135,14 @@ TRANSLATIONS["en"].update(
         "questionnaire.followups.none": "Confirmed modules have no unanswered required questions.",
         "questionnaire.followups.save": "Save follow-up answers",
         "questionnaire.followups.saved": "Follow-up facts saved.",
+        "questionnaire.followups.no_changes": "No answer was selected to save.",
+        "questionnaire.followups.unresolved_unknown": (
+            "This module remains unresolved because one or more required answers "
+            "are recorded as Unknown. You may run with information gaps or edit "
+            "the recorded answer."
+        ),
+        "questionnaire.response.recorded_unknown": "Recorded: Unknown",
+        "questionnaire.response.edit": "Edit answer",
         "assessment.confirm_module_first": "Confirm at least one implemented assessment module before running the assessment.",
         "trace.fact_source.dynamic_questionnaire": "Dynamic questionnaire",
         "trace.fact_source.demo_fixture": "Demo fixture",
@@ -999,6 +1153,7 @@ TRANSLATIONS["en"].update(
         "trace.rule.conditions": "Conditions satisfied: {matched} of {total}",
         "trace.rule.overall_result": "Overall result",
         "trace.rule.name.AI_ACT_HIGH_RISK_EMPLOYMENT": "AI Act employment high-risk test",
+        "trace.rule.name.AI_ACT_HIGH_RISK_PRODUCT_SAFETY": "AI Act Article 6(1) product-safety test",
         "trace.rule.name.GDPR_ARTICLE22_RELEVANCE": "GDPR Article 22 relevance test",
         "trace.rule.name.EU_DATA_ACT_RELEVANCE": "EU Data Act relevance test",
         "trace.rule.explanation.GDPR_ARTICLE22_RELEVANCE.potentially_applies": (
@@ -1012,6 +1167,8 @@ TRANSLATIONS["en"].update(
         "module.ai_act.credit_essential_services": "AI Act credit and essential-services assessment",
         "module.ai_act.judicial": "AI Act judicial-system assessment",
         "module.ai_act.product_safety": "AI Act product-safety assessment",
+        "module.ai_act.product_safety.boundary": "This module assesses only the Article 6(1) product and safety-component route. Other AI Act high-risk routes may require separate assessment.",
+        "question.annex_i_instrument.option.unknown": "Unknown / not yet identified",
         "question.unsupported_ai_act_credit.label.en": "This legal assessment module is not yet implemented.",
         "question.unsupported_ai_act_credit.help.en": "No applicability or compliance conclusion is produced for this route.",
         "question.unsupported_ai_act_judicial.label.en": "This legal assessment module is not yet implemented.",
@@ -1026,12 +1183,34 @@ TRANSLATIONS["en"].update(
         "routing_hint.decision.credit": "Credit or loan decision",
         "routing_hint.data_act.industrial_connected_equipment": "Industrial connected equipment",
         "routing_hint.ai_act.product_safety_component": "AI safety component of a regulated product",
+        "routing_hint.ai_act.regulated_ai_product": "AI system itself is a regulated product",
+        "routing_hint.ai_act.product_safety_context": "Machinery or industrial product-safety context",
+        "routing_hint.ai_act.medical_device_context": "Medical-device context",
+        "routing_hint.ai_act.regulated_equipment_context": "Regulated-equipment context",
+        "routing_hint.ai_act.conformity_assessment": "Third-party conformity-assessment relevance",
         "routing_reason.EMPLOYMENT_CONTEXT_AND_CONFIRMED_FUNCTION": "Employment domain and a confirmed employment function.",
         "routing_reason.PERSONAL_DATA_AND_AUTOMATED_SIGNIFICANT_DECISION": "Confirmed personal-data processing and automated significant decision facts.",
         "routing_reason.PERSONAL_DATA_AND_CONFIRMED_INDIVIDUAL_DECISION_CONTEXT": "Personal data and a confirmed individual-decision context.",
         "routing_reason.CONNECTED_PRODUCT_OR_SERVICE_GENERATES_DATA": "A connected product or related service generates data.",
         "routing_reason.CONFIRMED_CONNECTED_EQUIPMENT_CONTEXT": "A connected-equipment context was explicitly confirmed.",
+        "routing_reason.CONFIRMED_PRODUCT_RELATIONSHIP": "A product or safety-component relationship was explicitly confirmed.",
+        "routing_reason.CONTROLLED_PRODUCT_SAFETY_CONTEXT": "A controlled product-safety routing descriptor was confirmed.",
+        "routing_reason.PRODUCT_SAFETY_DOMAIN": "The controlled use domain is product safety.",
+        "routing_reason.ANNEX_I_INSTRUMENT_SELECTED": "A stable Annex I catalogue instrument was selected; this does not confirm coverage.",
         "routing_reason.USER_CONFIRMED_MODULE": "The user manually confirmed this module.",
+        "rule.AI_ACT_HIGH_RISK_PRODUCT_SAFETY": "Article 6(1) product-safety screening",
+        "fact.product_regulation.ai_is_product": "AI system is itself the product",
+        "fact.product_regulation.ai_is_safety_component": "AI system is a safety component",
+        "fact.product_regulation.product_type": "Product category",
+        "fact.product_regulation.annex_i_instrument": "Annex I legislation",
+        "fact.product_regulation.annex_i_instrument_confirmed": "Annex I coverage confirmation",
+        "fact.product_regulation.third_party_conformity_required": "Third-party conformity assessment",
+        "finding.AI_ACT_HIGH_RISK_PRODUCT_SAFETY.potentially_applies.title": "Product-safety high-risk classification potentially applies",
+        "finding.AI_ACT_HIGH_RISK_PRODUCT_SAFETY.potentially_applies.summary": "The confirmed facts satisfy the preliminary Article 6(1) product and safety-component route. Product-law and legal review remain required.",
+        "finding.AI_ACT_HIGH_RISK_PRODUCT_SAFETY.does_not_apply.title": "Article 6(1) product-safety screening criteria not met",
+        "finding.AI_ACT_HIGH_RISK_PRODUCT_SAFETY.does_not_apply.summary": "The confirmed facts do not meet this Article 6(1) product-safety route. This does not exclude Article 6(2), another Annex III category, or another applicable law.",
+        "finding.AI_ACT_HIGH_RISK_PRODUCT_SAFETY.undetermined.title": "Article 6(1) assessment requires fact reconciliation",
+        "finding.AI_ACT_HIGH_RISK_PRODUCT_SAFETY.undetermined.summary": "The product-regulation facts must be reconciled before an Article 6(1) conclusion can be drawn.",
         "affected_person.worker": "Worker",
         "affected_person.job_candidate": "Job candidate",
         "affected_person.student": "Student",
@@ -1069,6 +1248,13 @@ TRANSLATIONS["zh-CN"].update(
         "questionnaire.followups.none": "已确认模块不存在尚未回答的必要问题。",
         "questionnaire.followups.save": "保存补充回答",
         "questionnaire.followups.saved": "补充事实已保存。",
+        "questionnaire.followups.no_changes": "尚未选择需要保存的回答。",
+        "questionnaire.followups.unresolved_unknown": (
+            "一个或多个必要回答已记录为未知，因此本模块仍未解决。你可以在保留"
+            "信息缺口的情况下运行评估，或编辑已记录的回答。"
+        ),
+        "questionnaire.response.recorded_unknown": "已记录：未知",
+        "questionnaire.response.edit": "编辑回答",
         "assessment.confirm_module_first": "运行评估前，请至少确认一个已实现的评估模块。",
         "trace.fact_source.dynamic_questionnaire": "动态问卷",
         "trace.fact_source.demo_fixture": "演示案例预设事实",
@@ -1079,6 +1265,7 @@ TRANSLATIONS["zh-CN"].update(
         "trace.rule.conditions": "已满足条件：{matched}/{total}",
         "trace.rule.overall_result": "总体判断结果",
         "trace.rule.name.AI_ACT_HIGH_RISK_EMPLOYMENT": "《欧盟人工智能法案》就业高风险测试",
+        "trace.rule.name.AI_ACT_HIGH_RISK_PRODUCT_SAFETY": "《欧盟人工智能法案》第 6 条第 1 款产品安全测试",
         "trace.rule.name.GDPR_ARTICLE22_RELEVANCE": "GDPR 第22条相关性测试",
         "trace.rule.name.EU_DATA_ACT_RELEVANCE": "《欧盟数据法案》相关性测试",
         "trace.rule.explanation.GDPR_ARTICLE22_RELEVANCE.potentially_applies": (
@@ -1091,6 +1278,8 @@ TRANSLATIONS["zh-CN"].update(
         "module.ai_act.credit_essential_services": "《欧盟人工智能法案》信贷与基本服务评估",
         "module.ai_act.judicial": "《欧盟人工智能法案》司法系统评估",
         "module.ai_act.product_safety": "《欧盟人工智能法案》产品安全评估",
+        "module.ai_act.product_safety.boundary": "本模块仅评估《人工智能法案》第6条第1款的产品及安全部件路径。其他高风险分类路径仍可能需要单独评估。",
+        "question.annex_i_instrument.option.unknown": "未知／尚未识别",
         "question.unsupported_ai_act_credit.label.zh_cn": "当前版本尚未实现该法律评估模块。",
         "question.unsupported_ai_act_credit.help.zh_cn": "本路径不会生成适用、不适用或合规结论。",
         "question.unsupported_ai_act_judicial.label.zh_cn": "当前版本尚未实现该法律评估模块。",
@@ -1105,12 +1294,34 @@ TRANSLATIONS["zh-CN"].update(
         "routing_hint.decision.credit": "信贷或贷款决定",
         "routing_hint.data_act.industrial_connected_equipment": "工业互联设备",
         "routing_hint.ai_act.product_safety_component": "受监管产品的 AI 安全部件",
+        "routing_hint.ai_act.regulated_ai_product": "AI 系统本身属于受监管产品",
+        "routing_hint.ai_act.product_safety_context": "机械或工业产品安全场景",
+        "routing_hint.ai_act.medical_device_context": "医疗器械场景",
+        "routing_hint.ai_act.regulated_equipment_context": "受监管设备场景",
+        "routing_hint.ai_act.conformity_assessment": "第三方合格评定相关性",
         "routing_reason.EMPLOYMENT_CONTEXT_AND_CONFIRMED_FUNCTION": "就业领域与已确认的就业功能同时存在。",
         "routing_reason.PERSONAL_DATA_AND_AUTOMATED_SIGNIFICANT_DECISION": "已确认个人数据处理及自动化重大决定事实。",
         "routing_reason.PERSONAL_DATA_AND_CONFIRMED_INDIVIDUAL_DECISION_CONTEXT": "涉及个人数据，且已确认个人决定场景。",
         "routing_reason.CONNECTED_PRODUCT_OR_SERVICE_GENERATES_DATA": "互联产品或相关服务会生成数据。",
         "routing_reason.CONFIRMED_CONNECTED_EQUIPMENT_CONTEXT": "已明确确认互联设备场景。",
+        "routing_reason.CONFIRMED_PRODUCT_RELATIONSHIP": "已明确确认产品或安全部件关系。",
+        "routing_reason.CONTROLLED_PRODUCT_SAFETY_CONTEXT": "已确认受控的产品安全路由描述。",
+        "routing_reason.PRODUCT_SAFETY_DOMAIN": "受控使用领域为产品安全。",
+        "routing_reason.ANNEX_I_INSTRUMENT_SELECTED": "已选择稳定的附件 I 目录法规；该选择不构成覆盖确认。",
         "routing_reason.USER_CONFIRMED_MODULE": "用户已手动确认该模块。",
+        "rule.AI_ACT_HIGH_RISK_PRODUCT_SAFETY": "第 6 条第 1 款产品安全筛查",
+        "fact.product_regulation.ai_is_product": "AI 系统本身属于产品",
+        "fact.product_regulation.ai_is_safety_component": "AI 系统属于安全部件",
+        "fact.product_regulation.product_type": "产品类别",
+        "fact.product_regulation.annex_i_instrument": "附件 I 法规",
+        "fact.product_regulation.annex_i_instrument_confirmed": "附件 I 覆盖确认",
+        "fact.product_regulation.third_party_conformity_required": "第三方合格评定",
+        "finding.AI_ACT_HIGH_RISK_PRODUCT_SAFETY.potentially_applies.title": "产品安全路径的高风险分类可能适用",
+        "finding.AI_ACT_HIGH_RISK_PRODUCT_SAFETY.potentially_applies.summary": "现有确认事实满足第 6 条第 1 款产品及安全部件路径的初步条件，仍需产品法规及法律复核。",
+        "finding.AI_ACT_HIGH_RISK_PRODUCT_SAFETY.does_not_apply.title": "第 6 条第 1 款产品安全路径初筛条件未满足",
+        "finding.AI_ACT_HIGH_RISK_PRODUCT_SAFETY.does_not_apply.summary": "现有确认事实不满足第 6 条第 1 款产品安全路径；本结论不排除第 6 条第 2 款、附件 III 其他类别或其他适用法律。",
+        "finding.AI_ACT_HIGH_RISK_PRODUCT_SAFETY.undetermined.title": "第 6 条第 1 款评估需要核对事实",
+        "finding.AI_ACT_HIGH_RISK_PRODUCT_SAFETY.undetermined.summary": "在形成第 6 条第 1 款结论前，需要先核对产品监管事实。",
         "affected_person.worker": "劳动者",
         "affected_person.job_candidate": "求职者",
         "affected_person.student": "学生",

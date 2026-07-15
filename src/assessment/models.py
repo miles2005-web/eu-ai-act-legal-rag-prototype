@@ -82,6 +82,8 @@ class AssessmentRun(SerializableModel):
     ruleset_version: str = "2.0.0"
     questionnaire_version: str = "2.0.0"
     corpus_version: str | None = None
+    authorized_rule_ids: list[str] = field(default_factory=list)
+    input_fingerprint: str | None = None
     status: AssessmentRunStatus = AssessmentRunStatus.PENDING
     findings: list[Finding] = field(default_factory=list)
     created_at: datetime = field(default_factory=utc_now)
@@ -91,4 +93,16 @@ class AssessmentRun(SerializableModel):
     def __post_init__(self) -> None:
         # A run must retain the facts it evaluated even if the draft case changes.
         self.facts_snapshot = deepcopy(self.facts_snapshot)
-
+        self.authorized_rule_ids = list(self.authorized_rule_ids)
+        if any(
+            not isinstance(rule_id, str) or not rule_id.strip()
+            for rule_id in self.authorized_rule_ids
+        ):
+            raise ValueError("authorized_rule_ids must contain non-empty strings")
+        if len(set(self.authorized_rule_ids)) != len(self.authorized_rule_ids):
+            raise ValueError("authorized_rule_ids must not contain duplicates")
+        if self.input_fingerprint is not None and (
+            not isinstance(self.input_fingerprint, str)
+            or not self.input_fingerprint.strip()
+        ):
+            raise ValueError("input_fingerprint must be non-empty when provided")

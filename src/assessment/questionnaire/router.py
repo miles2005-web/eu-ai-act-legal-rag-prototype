@@ -24,14 +24,17 @@ from src.assessment.questionnaire.routing_models import (
     FactCondition,
     FactConditionOperator,
     FactProvenance,
+    QuestionDependency,
     QuestionnaireRoute,
     RoutingQuestionDefinition,
+    QuestionResponseState,
     UnsupportedPathDefinition,
     UnsupportedPathRoute,
 )
 from src.assessment.requirements import FactRequirementValidator
 from src.assessment.rules import (
     AIActHighRiskEmploymentRule,
+    AIActHighRiskProductSafetyRule,
     EUDataActRelevanceRule,
     GDPRArticle22RelevanceRule,
     RuleRegistry,
@@ -164,9 +167,15 @@ class QuestionnaireRouter:
             self._definitions.get(rule_id).confirmation_question_id
             for rule_id in suggested
         ]
+        recorded_unknown_ids = self._recorded_unknown_question_ids(
+            facts,
+            confirmed,
+            provenance_records,
+        )
         follow_up_questions = self._confirmed_follow_up_questions(
             facts,
             confirmed,
+            frozenset(recorded_unknown_ids),
         )
         next_questions = self._deduplicate_questions(
             [*universal_questions, *follow_up_questions]
@@ -192,12 +201,14 @@ class QuestionnaireRouter:
                 *follow_up_ids,
             ],
             routing_reasons=reasons,
+            recorded_unknown_question_ids=recorded_unknown_ids,
         )
 
     def _confirmed_follow_up_questions(
         self,
         facts: AssessmentFacts,
         confirmed_rule_ids: list[str],
+        recorded_unknown_ids: frozenset[str],
     ) -> list[Question]:
         """Reuse QuestionnaireEngine once per module to preserve module order."""
 
@@ -211,14 +222,53 @@ class QuestionnaireRouter:
                 facts,
             )
             plan = self._questionnaire_engine.build([requirement])
-            allowed_question_ids = frozenset(definition.question_ids)
-            questions.extend(
-                question
-                for question in plan.questions
-                if question.question_id in allowed_question_ids
-                and self._dependencies_satisfied(question.question_id, facts)
+            planned_ids = {
+                question.question_id for question in plan.questions
+            }
+            supplemental_ids = frozenset(
+                definition.supplemental_question_ids
             )
+            for question_id in definition.question_ids:
+                if question_id in recorded_unknown_ids:
+                    continue
+                if question_id not in planned_ids and question_id not in supplemental_ids:
+                    continue
+                question = self._questions.get(question_id)
+                if question_id in supplemental_ids and not self._is_missing(
+                    self._resolve_fact(facts, question.fact_path)
+                ):
+                    continue
+                if self._dependencies_satisfied(question_id, facts):
+                    questions.append(question)
         return questions
+
+    def _recorded_unknown_question_ids(
+        self,
+        facts: AssessmentFacts,
+        confirmed_rule_ids: list[str],
+        provenance_records: tuple[FactProvenance, ...],
+    ) -> list[str]:
+        """Return explicit Unknown responses in authored question order."""
+
+        confirmed = frozenset(confirmed_rule_ids)
+        records_by_question = {
+            record.question_id: record for record in provenance_records
+        }
+        recorded: list[str] = []
+        for question_id, metadata in self._question_metadata.items():
+            record = records_by_question.get(question_id)
+            if (
+                record is None
+                or record.module_id not in confirmed
+                or record.response_state
+                is not QuestionResponseState.EXPLICIT_UNKNOWN
+            ):
+                continue
+            if self._is_missing(
+                self._resolve_fact(facts, metadata.fact_path)
+            ):
+                recorded.append(question_id)
+        return recorded
 
     def _unanswered_universal_questions(
         self,
@@ -246,7 +296,26 @@ class QuestionnaireRouter:
                     return False
             elif dependency.accepted_values and primitive not in dependency.accepted_values:
                 return False
+        if metadata.any_dependencies and not any(
+            self._dependency_satisfied(dependency, facts)
+            for dependency in metadata.any_dependencies
+        ):
+            return False
         return True
+
+    def _dependency_satisfied(
+        self,
+        dependency: QuestionDependency,
+        facts: AssessmentFacts,
+    ) -> bool:
+        value = self._resolve_fact(facts, dependency.fact_path)
+        primitive = self._primitive(value)
+        if self._is_missing(value):
+            return primitive in dependency.accepted_values
+        return (
+            not dependency.accepted_values
+            or primitive in dependency.accepted_values
+        )
 
     def _unsupported_routes(
         self,
@@ -372,11 +441,12 @@ class QuestionnaireRouter:
 
 
 def build_default_questionnaire_router() -> QuestionnaireRouter:
-    """Build the Phase 1 router with the three existing legal rules."""
+    """Build the deterministic router with all implemented legal rules."""
 
     rule_registry = RuleRegistry(
         [
             AIActHighRiskEmploymentRule(),
+            AIActHighRiskProductSafetyRule(),
             GDPRArticle22RelevanceRule(),
             EUDataActRelevanceRule(),
         ]

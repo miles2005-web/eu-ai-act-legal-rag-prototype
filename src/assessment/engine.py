@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from copy import deepcopy
 
 from src.assessment.facts import AssessmentFacts
@@ -52,11 +53,55 @@ class AssessmentEngine:
     def engine_version(self) -> str:
         return self._engine_version
 
-    def run(self, facts: AssessmentFacts) -> AssessmentResult:
-        """Execute all registered rules in registration order.
+    @property
+    def registered_rule_ids(self) -> tuple[str, ...]:
+        """Return the stable full-engine rule order."""
+
+        return self._registry.ids()
+
+    def resolve_rule_ids(
+        self,
+        rule_ids: Iterable[str] | None = None,
+    ) -> tuple[str, ...]:
+        """Validate a requested scope and return it in registry order.
+
+        ``None`` intentionally preserves the original full-engine behavior.
+        An explicit iterable selects only those rules without mutating the
+        shared registry.
+        """
+
+        if rule_ids is None:
+            return self._registry.ids()
+        if isinstance(rule_ids, (str, bytes)):
+            raise TypeError("rule_ids must be an iterable of rule ID strings")
+        requested = tuple(rule_ids)
+        if any(not isinstance(rule_id, str) or not rule_id.strip() for rule_id in requested):
+            raise ValueError("rule_ids must contain non-empty strings")
+        if len(set(requested)) != len(requested):
+            raise ValueError("rule_ids must not contain duplicates")
+        unknown = set(requested).difference(self._registry.ids())
+        if unknown:
+            raise ValueError(
+                "rule_ids contains unregistered rules: "
+                + ", ".join(sorted(unknown))
+            )
+        selected = frozenset(requested)
+        return tuple(
+            rule_id for rule_id in self._registry.ids() if rule_id in selected
+        )
+
+    def run(
+        self,
+        facts: AssessmentFacts,
+        *,
+        rule_ids: Iterable[str] | None = None,
+    ) -> AssessmentResult:
+        """Execute selected rules in registration order.
 
         Each rule receives its own copy of the input facts. A failure in one
-        rule is recorded and does not prevent later rules from executing.
+        rule is recorded and does not prevent later rules from executing. If
+        ``rule_ids`` is omitted, all registered rules execute for backward
+        compatibility with non-UI callers.
         """
 
         if not isinstance(facts, AssessmentFacts):
@@ -64,7 +109,10 @@ class AssessmentEngine:
 
         # Freeze rule ordering for the duration of this execution even if the
         # registry is changed elsewhere after the run begins.
-        rules = self._registry.all()
+        authorized_rule_ids = self.resolve_rule_ids(rule_ids)
+        rules = tuple(
+            self._registry.get(rule_id) for rule_id in authorized_rule_ids
+        )
         assessed_frameworks = list(
             dict.fromkeys(rule.framework for rule in rules)
         )
@@ -103,6 +151,7 @@ class AssessmentEngine:
             failures=failures,
             missing_fact_requirements=missing_fact_requirements,
             assessed_frameworks=assessed_frameworks,
+            authorized_rule_ids=list(authorized_rule_ids),
         )
 
     @staticmethod

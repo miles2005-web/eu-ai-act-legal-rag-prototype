@@ -13,6 +13,7 @@ from src.assessment.questionnaire.definitions import (
 from src.assessment.questionnaire.routing_models import (
     FactProvenance,
     InvalidationResult,
+    QuestionInvalidation,
     RoutingQuestionDefinition,
     RuleQuestionnaireDefinition,
 )
@@ -72,13 +73,19 @@ def calculate_invalidations(
         != _primitive(_resolve(current_facts, path))
     ]
 
-    declared_targets_by_source: dict[str, set[str]] = {}
+    declared_invalidations_by_source: dict[
+        str,
+        list[QuestionInvalidation],
+    ] = {}
     for question in questions:
         if not question.invalidations:
             continue
-        targets = declared_targets_by_source.setdefault(question.fact_path, set())
-        for declaration in question.invalidations:
-            targets.update(declaration.fact_paths)
+        declared_invalidations_by_source.setdefault(
+            question.fact_path,
+            [],
+        ).extend(question.invalidations)
+
+    questions_by_id = {question.question_id: question for question in questions}
 
     stale_fact_paths: list[str] = []
     invalidated_question_ids: list[str] = []
@@ -91,11 +98,37 @@ def calculate_invalidations(
             for path in changed_paths
             if path in record.depends_on
             and (
-                record.fact_path in declared_targets_by_source.get(path, set())
-                or not declared_targets_by_source.get(path)
+                _is_declared_target(
+                    path,
+                    record.fact_path,
+                    declared_invalidations_by_source,
+                )
+                or not declared_invalidations_by_source.get(path)
             )
         ]
         if not triggering_paths:
+            continue
+        question = questions_by_id.get(record.question_id)
+        if (
+            question is not None
+            and question.any_dependencies
+            and set(triggering_paths).issubset(
+                {
+                    dependency.fact_path
+                    for dependency in question.any_dependencies
+                }
+            )
+            and _any_dependency_satisfied(question, current_facts)
+        ):
+            continue
+        if record.explicitly_confirmed and all(
+            _preserves_explicit_confirmation(
+                path,
+                record.fact_path,
+                declared_invalidations_by_source,
+            )
+            for path in triggering_paths
+        ):
             continue
         _append_once(stale_fact_paths, record.fact_path)
         _append_once(invalidated_question_ids, record.question_id)
@@ -137,6 +170,47 @@ def _resolve(facts: AssessmentFacts, fact_path: str) -> object:
 
 def _primitive(value: object) -> object:
     return value.value if isinstance(value, Enum) else value
+
+
+def _is_declared_target(
+    source_path: str,
+    target_path: str,
+    declarations_by_source: dict[str, list[QuestionInvalidation]],
+) -> bool:
+    return any(
+        target_path in declaration.fact_paths
+        for declaration in declarations_by_source.get(source_path, ())
+    )
+
+
+def _preserves_explicit_confirmation(
+    source_path: str,
+    target_path: str,
+    declarations_by_source: dict[str, list[QuestionInvalidation]],
+) -> bool:
+    matching = [
+        declaration
+        for declaration in declarations_by_source.get(source_path, ())
+        if target_path in declaration.fact_paths
+    ]
+    return bool(matching) and all(
+        declaration.preserve_explicitly_confirmed
+        for declaration in matching
+    )
+
+
+def _any_dependency_satisfied(
+    question: RoutingQuestionDefinition,
+    facts: AssessmentFacts,
+) -> bool:
+    for dependency in question.any_dependencies:
+        value = _primitive(_resolve(facts, dependency.fact_path))
+        if dependency.accepted_values:
+            if value in dependency.accepted_values:
+                return True
+        elif value is not None and value != "unknown":
+            return True
+    return False
 
 
 def _append_once(values: list[str], value: str) -> None:
