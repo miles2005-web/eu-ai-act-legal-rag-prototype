@@ -35,6 +35,7 @@ class AIActHighRiskProductSafetyRule(AssessmentRule):
     framework = RegulatoryFramework.EU_AI_ACT
     rule_id = "AI_ACT_HIGH_RISK_PRODUCT_SAFETY"
     version = "2026.1"
+    planning_ordering_key = "020"
     category = FindingCategory.HIGH_RISK_ARTICLE_6_1
     issue_code = "AIA_HIGH_RISK_ARTICLE_6_1_PRELIMINARY"
     required_fact_paths = (

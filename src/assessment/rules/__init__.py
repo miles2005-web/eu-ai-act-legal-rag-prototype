@@ -12,6 +12,12 @@ from src.assessment.rules.registry import (
     RuleNotFoundError,
     RuleRegistry,
 )
+from src.assessment.rules.planning import (
+    RulePhase,
+    RulePlanningError,
+    RulePlanningMetadata,
+    RulesetPlan,
+)
 
 __all__ = [
     "AIActHighRiskEmploymentRule",
@@ -22,5 +28,9 @@ __all__ = [
     "GDPRArticle22RelevanceRule",
     "RuleDefinitionError",
     "RuleNotFoundError",
+    "RulePhase",
+    "RulePlanningError",
+    "RulePlanningMetadata",
     "RuleRegistry",
+    "RulesetPlan",
 ]

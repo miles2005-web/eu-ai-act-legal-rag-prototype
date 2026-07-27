@@ -111,6 +111,12 @@ from src.assessment.scope import (
     WorkflowId,
 )
 from src.assessment.results import AssessmentResult, RuleExecutionFailure
+from src.assessment.rules import (
+    RulePhase,
+    RulePlanningError,
+    RulePlanningMetadata,
+    RulesetPlan,
+)
 from src.assessment.workflow import (
     AssessmentRunNotFoundError,
     AssessmentWorkflowService,
@@ -200,8 +206,12 @@ __all__ = [
     "RuleInvocation",
     "RuleExecutionFailure",
     "RuleOutputError",
+    "RulePhase",
+    "RulePlanningError",
+    "RulePlanningMetadata",
     "RuleRequirementResult",
     "RuleVersionMetadata",
+    "RulesetPlan",
     "TriState",
     "ScreeningCriterionFacts",
     "StableIdentifier",

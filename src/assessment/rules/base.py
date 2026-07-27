@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
+from types import MappingProxyType
 
 from src.assessment.facts import AssessmentFacts
 from src.assessment.findings import Finding, FindingCategory, LegalBasis
 from src.assessment.frameworks import RegulatoryFramework
+from src.assessment.rules.planning import (
+    RulePhase,
+    RulePlanningMetadata,
+)
 
 
 class RuleDefinitionError(ValueError):
@@ -27,6 +33,14 @@ class AssessmentRule(ABC):
     category: FindingCategory
     required_fact_paths: tuple[str, ...]
     legal_basis: tuple[LegalBasis, ...]
+    planning_phase: RulePhase = RulePhase.SCREENING
+    planning_ordering_key: str | None = None
+    planning_dependencies: tuple[str, ...] = ()
+    planning_accepted_upstream_statuses: Mapping[
+        str, tuple[str, ...]
+    ] = MappingProxyType({})
+    planning_subject_selector: str = "legacy_case_scope"
+    planning_metadata_version: str = RulePlanningMetadata.CONTRACT_VERSION
 
     @abstractmethod
     def evaluate(self, facts: AssessmentFacts) -> Finding:
@@ -49,6 +63,34 @@ class AssessmentRule(ABC):
         if not isinstance(facts, AssessmentFacts):
             raise TypeError("facts must be an AssessmentFacts instance")
         return self.required_fact_paths
+
+    def planning_metadata(self) -> RulePlanningMetadata:
+        """Return explicit planning metadata without changing rule execution.
+
+        The default is the compatibility contract for v0.5 rules: screening,
+        no dependencies, and a stable rule-ID ordering key. Concrete rules may
+        declare execution-significant metadata as class attributes. F2A only
+        validates and exposes this metadata; ``AssessmentEngine`` continues to
+        execute in registry order.
+        """
+
+        ordering_key = (
+            self.planning_ordering_key
+            if self.planning_ordering_key is not None
+            else f"legacy:{self.rule_id}"
+        )
+        return RulePlanningMetadata(
+            rule_id=self.rule_id,
+            rule_version=self.version,
+            phase=self.planning_phase,
+            ordering_key=ordering_key,
+            dependencies=self.planning_dependencies,
+            accepted_upstream_statuses=(
+                self.planning_accepted_upstream_statuses
+            ),
+            subject_selector=self.planning_subject_selector,
+            contract_version=self.planning_metadata_version,
+        )
 
     def validate_definition(self) -> None:
         """Validate metadata required for safe registration and lookup."""

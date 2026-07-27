@@ -24,6 +24,7 @@ class EUDataActRelevanceRule(AssessmentRule):
 
     rule_id = "EU_DATA_ACT_RELEVANCE"
     version = "2026.1"
+    planning_ordering_key = "040"
     framework = RegulatoryFramework.EU_DATA_ACT
     category = FindingCategory.DATA_GOVERNANCE
     required_fact_paths = (

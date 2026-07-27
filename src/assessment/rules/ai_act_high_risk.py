@@ -28,6 +28,7 @@ class AIActHighRiskEmploymentRule(AssessmentRule):
     framework = RegulatoryFramework.EU_AI_ACT
     rule_id = "AI_ACT_HIGH_RISK_EMPLOYMENT"
     version = "2026.1"
+    planning_ordering_key = "010"
     category = FindingCategory.HIGH_RISK
     required_fact_paths = (
         "use_context.domain",
