@@ -11,6 +11,7 @@ from src.assessment.frameworks import RegulatoryFramework
 from src.ui.components import (
     framework_label,
     render_assessment_summary_card,
+    render_demo_card,
     render_evidence_trace_card,
     render_finding_card,
     render_framework_card,
@@ -31,6 +32,7 @@ class UIComponentSmokeTests(unittest.TestCase):
     def test_public_components_are_importable(self) -> None:
         for component in (
             render_assessment_summary_card,
+            render_demo_card,
             render_evidence_trace_card,
             render_finding_card,
             render_framework_card,
@@ -42,6 +44,44 @@ class UIComponentSmokeTests(unittest.TestCase):
         self.assertIn(".ui-trace-fact-source", ENTERPRISE_STYLES)
         self.assertIn(".ui-rule-application-summary", ENTERPRISE_STYLES)
         self.assertIn(".ui-condition-map-row", ENTERPRISE_STYLES)
+
+    def test_demo_cards_define_key_scoped_responsive_layout_contract(self) -> None:
+        self.assertIn(".ui-demo-card", ENTERPRISE_STYLES)
+        self.assertIn(".ui-demo-card__content", ENTERPRISE_STYLES)
+        self.assertIn(".ui-demo-card__footer", ENTERPRISE_STYLES)
+        self.assertIn(".st-key-demo_cards_grid", ENTERPRISE_STYLES)
+        self.assertIn(".st-key-demo_card_recruitment", ENTERPRISE_STYLES)
+        self.assertIn(".st-key-demo_card_industrial", ENTERPRISE_STYLES)
+        self.assertIn(".st-key-demo_card_multiframework", ENTERPRISE_STYLES)
+        self.assertIn(
+            '> [data-testid="stLayoutWrapper"]',
+            ENTERPRISE_STYLES,
+        )
+        self.assertIn("align-items: stretch", ENTERPRISE_STYLES)
+        self.assertIn("flex-direction: column", ENTERPRISE_STYLES)
+        self.assertIn("margin-top: auto", ENTERPRISE_STYLES)
+        self.assertIn(
+            "grid-template-columns: repeat(3, minmax(0, 1fr))",
+            ENTERPRISE_STYLES,
+        )
+        self.assertIn(
+            "grid-template-columns: repeat(2, minmax(0, 1fr))",
+            ENTERPRISE_STYLES,
+        )
+        self.assertIn(
+            "grid-template-columns: minmax(0, 1fr)",
+            ENTERPRISE_STYLES,
+        )
+        self.assertNotIn(
+            '[data-testid="stHorizontalBlock"]:has(.ui-demo-card)',
+            ENTERPRISE_STYLES,
+        )
+        self.assertNotIn(
+            '.st-key-demo_cards_grid [data-testid="stVerticalBlockBorderWrapper"]',
+            ENTERPRISE_STYLES,
+        )
+        self.assertNotIn("height: 500px", ENTERPRISE_STYLES)
+        self.assertNotIn("min-height: 520px", ENTERPRISE_STYLES)
 
     def test_framework_labels_cover_supported_frameworks(self) -> None:
         self.assertEqual(

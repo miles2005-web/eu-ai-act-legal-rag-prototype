@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Callable
 from html import escape
 
 import streamlit as st
@@ -18,6 +19,49 @@ from src.ui.components.common import (
     status_label,
 )
 from src.ui.i18n import DEFAULT_LANGUAGE, t, t_or
+
+
+def render_demo_card(
+    *,
+    card_id: str,
+    container_key: str,
+    label: str,
+    title: str,
+    description: str,
+    metadata: str,
+    action_label: str,
+    on_open: Callable[[], None],
+) -> None:
+    """Render one responsive demo entry using the shared card structure."""
+
+    if not isinstance(card_id, str) or not card_id.strip():
+        raise ValueError("card_id must be a non-empty string")
+    if not isinstance(container_key, str) or not container_key.strip():
+        raise ValueError("container_key must be a non-empty string")
+    if not callable(on_open):
+        raise TypeError("on_open must be callable")
+    with st.container(border=True, key=container_key):
+        st.markdown(
+            '<article class="ui-demo-card" '
+            f'data-demo-card="{escape(card_id)}">'
+            '<div class="ui-demo-card__content">'
+            f'<div class="ui-demo-label">{escape(label)}</div>'
+            f'<div class="ui-demo-title">{escape(title)}</div>'
+            f'<div class="ui-demo-copy">{escape(description)}</div>'
+            "</div>"
+            '<footer class="ui-demo-card__footer">'
+            f'<div class="ui-demo-meta">{escape(metadata)}</div>'
+            "</footer>"
+            "</article>",
+            unsafe_allow_html=True,
+        )
+        if st.button(
+            action_label,
+            key=f"demo-card-action::{card_id}",
+            type="primary",
+            use_container_width=True,
+        ):
+            on_open()
 
 
 def render_assessment_summary_card(

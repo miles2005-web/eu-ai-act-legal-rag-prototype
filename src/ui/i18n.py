@@ -1199,6 +1199,25 @@ TRANSLATIONS["en"].update(
         "questionnaire.unsupported.none": "No unsupported route was identified from the current controlled inputs.",
         "questionnaire.screened.title": "Screened-out routes",
         "questionnaire.screened.none": "No implemented route is currently screened out.",
+        "questionnaire.routing_audit.title": "Technical details / Routing audit",
+        "questionnaire.routing_audit.screened": (
+            "Implemented modules excluded by current facts"
+        ),
+        "evidence.navigation.title.AI_ACT_HIGH_RISK_PRODUCT_SAFETY": (
+            "EU AI Act Article 6(1) product-safety route"
+        ),
+        "evidence.navigation.title.EU_DATA_ACT_RELEVANCE": (
+            "EU Data Act relevance screening"
+        ),
+        "evidence.navigation.action.AI_ACT_HIGH_RISK_PRODUCT_SAFETY": (
+            "View AI Act Evidence Trace"
+        ),
+        "evidence.navigation.action.EU_DATA_ACT_RELEVANCE": (
+            "View Data Act Evidence Trace"
+        ),
+        "evidence.navigation.count.one": "{count} Evidence record",
+        "evidence.navigation.count.other": "{count} Evidence records",
+        "evidence.trace.currently_viewing": "Currently viewing: {finding}",
         "questionnaire.why_suggested": "Why this was suggested",
         "questionnaire.confirm": "Confirm module",
         "questionnaire.decline": "Decline",
@@ -1312,6 +1331,23 @@ TRANSLATIONS["zh-CN"].update(
         "questionnaire.unsupported.none": "当前受控输入未识别出尚未支持的路径。",
         "questionnaire.screened.title": "已筛除的路径",
         "questionnaire.screened.none": "当前没有已筛除的已实现路径。",
+        "questionnaire.routing_audit.title": "技术详情 / 路由审计",
+        "questionnaire.routing_audit.screened": "根据当前事实已排除的已实现模块",
+        "evidence.navigation.title.AI_ACT_HIGH_RISK_PRODUCT_SAFETY": (
+            "《欧盟人工智能法案》第6条第1款产品安全路径"
+        ),
+        "evidence.navigation.title.EU_DATA_ACT_RELEVANCE": (
+            "《欧盟数据法案》相关性筛查"
+        ),
+        "evidence.navigation.action.AI_ACT_HIGH_RISK_PRODUCT_SAFETY": (
+            "查看《欧盟人工智能法案》证据链"
+        ),
+        "evidence.navigation.action.EU_DATA_ACT_RELEVANCE": (
+            "查看《欧盟数据法案》证据链"
+        ),
+        "evidence.navigation.count.one": "{count} 条证据",
+        "evidence.navigation.count.other": "{count} 条证据",
+        "evidence.trace.currently_viewing": "当前查看：{finding}",
         "questionnaire.why_suggested": "建议原因",
         "questionnaire.confirm": "确认模块",
         "questionnaire.decline": "暂不评估",

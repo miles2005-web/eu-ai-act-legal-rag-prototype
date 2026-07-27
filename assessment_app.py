@@ -37,6 +37,7 @@ from src.assessment.questionnaire.definitions import (
 from src.assessment.report import AssessmentReport
 from src.ui import apply_enterprise_styles
 from src.ui.components import (
+    render_demo_card,
     render_section_header,
 )
 from src.ui.components.common import (
@@ -262,7 +263,7 @@ def initialize_ui_state() -> None:
     st.session_state.setdefault("assessment_view", VIEW_LANDING)
     st.session_state.setdefault("demo_scenario", None)
     st.session_state.setdefault("demo_scenario_id", None)
-    st.session_state.setdefault("selected_finding_id", None)
+    st.session_state.setdefault("selected_finding_rule_id", None)
     st.session_state.setdefault("ui_language", DEFAULT_LANGUAGE)
     st.session_state.setdefault("assessment_confirmed_modules", [])
     st.session_state.setdefault("assessment_declined_modules", [])
@@ -310,7 +311,7 @@ def reset_case_dependent_state(*, view: str) -> AssessmentWorkflowBundle:
     st.session_state.assessment_workflow_bundle = bundle
     st.session_state.assessment_case_id = None
     st.session_state.assessment_report = None
-    st.session_state.selected_finding_id = None
+    st.session_state.selected_finding_rule_id = None
     st.session_state.demo_loaded = False
     st.session_state.demo_scenario = None
     st.session_state.demo_scenario_id = None
@@ -347,7 +348,7 @@ def replace_workflow_bundle_preserving_case(
     )
     st.session_state.assessment_workflow_bundle = replacement
     st.session_state.assessment_report = None
-    st.session_state.selected_finding_id = None
+    st.session_state.selected_finding_rule_id = None
     st.session_state.assessment_run_mode = None
     st.session_state.assessment_run_route = None
     if st.session_state.get("assessment_view") in (VIEW_RESULTS, VIEW_EVIDENCE):
@@ -359,7 +360,7 @@ def clear_assessment_output() -> None:
     """Clear all presentation state derived from an older fact route."""
 
     st.session_state.assessment_report = None
-    st.session_state.selected_finding_id = None
+    st.session_state.selected_finding_rule_id = None
     st.session_state.assessment_run_mode = None
     st.session_state.assessment_run_route = None
     if st.session_state.get("assessment_view") in (VIEW_RESULTS, VIEW_EVIDENCE):
@@ -450,7 +451,7 @@ def clear_mismatched_report(
     if case_id is not None and report_belongs_to_case(bundle, report, case_id):
         return report
     st.session_state.assessment_report = None
-    st.session_state.selected_finding_id = None
+    st.session_state.selected_finding_rule_id = None
     st.session_state.assessment_run_mode = None
     st.session_state.assessment_run_route = None
     if st.session_state.get("assessment_view") in (VIEW_RESULTS, VIEW_EVIDENCE):
@@ -476,15 +477,42 @@ def ordered_findings_for_presentation(findings: list) -> tuple[list, list]:
     return primary, screened_out
 
 
-def prioritize_selected_finding(findings: list, selected_id: str | None) -> list:
-    """Place the selected finding first without changing report ordering."""
+def selectable_findings(findings: list) -> list:
+    """Return all substantive Findings in canonical report order."""
 
-    if not selected_id:
-        return list(findings)
-    return sorted(
-        findings,
-        key=lambda finding: finding.finding_id != selected_id,
+    primary, screened_out = ordered_findings_for_presentation(findings)
+    return primary if primary else screened_out
+
+
+def finding_navigation_title(finding, language: str) -> str:
+    """Return concise bilingual copy for a Finding navigation option."""
+
+    return t_or(
+        f"evidence.navigation.title.{finding.rule_id}",
+        finding_title(finding, language),
+        language,
     )
+
+
+def selected_finding_rule_id(findings: list) -> str | None:
+    """Normalize canonical selection against the active non-stale report."""
+
+    if not findings:
+        st.session_state.selected_finding_rule_id = None
+        return None
+    available = [finding.rule_id for finding in findings]
+    selected_rule_id = st.session_state.get("selected_finding_rule_id")
+    if selected_rule_id not in available:
+        selected_rule_id = available[0]
+    st.session_state.selected_finding_rule_id = selected_rule_id
+    return selected_rule_id
+
+
+def navigate_to_finding(rule_id: str) -> None:
+    """Select one canonical Finding and open its Evidence Trace."""
+
+    st.session_state.selected_finding_rule_id = rule_id
+    st.session_state.assessment_view = VIEW_EVIDENCE
 
 
 def scoped_recommendations(
@@ -557,14 +585,20 @@ def framework_screen_status_key(
     return "framework_screen.completed"
 
 
-def render_multi_finding_summary(findings: list, language: str) -> None:
-    """Show equally weighted framework screens for independent Findings."""
+def render_finding_navigation(
+    report: AssessmentReport,
+    findings: list,
+    language: str,
+    *,
+    context: str,
+) -> str | None:
+    """Render equally weighted Finding options and return canonical selection."""
 
-    if len(findings) < 2:
-        return
-    st.info(t("report.multiple_findings.summary", language))
+    selected_rule_id = selected_finding_rule_id(findings)
     columns = st.columns(len(findings))
     for column, finding in zip(columns, findings, strict=True):
+        bound_evidence = evidence_for_finding(report, finding.finding_id)
+        active = finding.rule_id == selected_rule_id
         with column:
             with st.container(border=True):
                 render_framework_badge(
@@ -573,13 +607,51 @@ def render_multi_finding_summary(findings: list, language: str) -> None:
                     language=language,
                 )
                 st.markdown(
-                    '<div class="ui-framework-finding-summary" '
-                    f'data-framework="{escape(finding.framework.value)}">'
-                    f"<strong>{escape(finding_title(finding, language))}</strong>"
-                    f"<span>{escape(status_label(finding.status, language))}</span>"
+                    '<div class="ui-finding-navigation-card '
+                    f'{"ui-finding-navigation-card--active" if active else ""}" '
+                    f'data-finding-option="{escape(finding.rule_id)}" '
+                    f'data-framework="{escape(finding.framework.value)}" '
+                    f'data-active="{"true" if active else "false"}">'
+                    f"<strong>{escape(finding_navigation_title(finding, language))}</strong>"
+                    "<span>"
+                    f"{escape(status_label(finding.status, language))} · "
+                    f'{escape(count_text("evidence.navigation.count", len(bound_evidence), language))}'
+                    "</span>"
                     "</div>",
                     unsafe_allow_html=True,
                 )
+                action_label = t_or(
+                    f"evidence.navigation.action.{finding.rule_id}",
+                    t("evidence.view_trace", language),
+                    language,
+                )
+                st.button(
+                    action_label,
+                    key=f"finding-navigation::{context}::{finding.rule_id}",
+                    type="primary" if active else "secondary",
+                    use_container_width=True,
+                    on_click=navigate_to_finding,
+                    args=(finding.rule_id,),
+                )
+    return selected_rule_id
+
+
+def render_multi_finding_summary(
+    report: AssessmentReport,
+    findings: list,
+    language: str,
+) -> None:
+    """Show equally weighted framework screens for independent Findings."""
+
+    if len(findings) < 2:
+        return
+    st.info(t("report.multiple_findings.summary", language))
+    render_finding_navigation(
+        report,
+        findings,
+        language,
+        context="report",
+    )
 
 
 def render_missing_item(item, language: str, *, scope: str) -> None:
@@ -959,70 +1031,41 @@ def render_case_creation(bundle: AssessmentWorkflowBundle, language: str) -> Non
         eyebrow=t("demo.section.eyebrow", language),
         description=t("demo.section.copy", language),
     )
-    recruitment_column, industrial_column, multi_framework_column = st.columns(3)
-    with recruitment_column:
-        with st.container(border=True):
-            st.markdown(
-                f"""
-                <div class="ui-demo-label">{t("demo.recruitment.label", language)}</div>
-                <div class="ui-demo-title">{t("demo.recruitment.title", language)}</div>
-                <div class="ui-demo-copy">
-                  {t("demo.recruitment.copy", language)}
-                </div>
-                <div class="ui-demo-meta">
-                  {t("demo.recruitment.meta", language)}
-                </div>
-                """,
-                unsafe_allow_html=True,
+    with st.container(key="demo_cards_grid"):
+        recruitment_column, industrial_column, multi_framework_column = st.columns(3)
+        with recruitment_column:
+            render_demo_card(
+                card_id="recruitment",
+                container_key="demo_card_recruitment",
+                label=t("demo.recruitment.label", language),
+                title=t("demo.recruitment.title", language),
+                description=t("demo.recruitment.copy", language),
+                metadata=t("demo.recruitment.meta", language),
+                action_label=t("demo.recruitment.open", language),
+                on_open=load_recruitment_demo,
             )
-            if st.button(
-                t("demo.recruitment.open", language),
-                type="primary",
-                use_container_width=True,
-            ):
-                load_recruitment_demo()
-    with industrial_column:
-        with st.container(border=True):
-            st.markdown(
-                f"""
-                <div class="ui-demo-label">{t("demo.industrial.label", language)}</div>
-                <div class="ui-demo-title">{t("demo.industrial.title", language)}</div>
-                <div class="ui-demo-copy">
-                  {t("demo.industrial.copy", language)}
-                </div>
-                <div class="ui-demo-meta">
-                  {t("demo.industrial.meta", language)}
-                </div>
-                """,
-                unsafe_allow_html=True,
+        with industrial_column:
+            render_demo_card(
+                card_id="industrial",
+                container_key="demo_card_industrial",
+                label=t("demo.industrial.label", language),
+                title=t("demo.industrial.title", language),
+                description=t("demo.industrial.copy", language),
+                metadata=t("demo.industrial.meta", language),
+                action_label=t("demo.industrial.open", language),
+                on_open=load_industrial_demo,
             )
-            if st.button(
-                t("demo.industrial.open", language),
-                type="primary",
-                use_container_width=True,
-            ):
-                load_industrial_demo()
-    with multi_framework_column:
-        with st.container(border=True):
-            st.markdown(
-                f"""
-                <div class="ui-demo-label">{t("demo.industrial_multi_framework.label", language)}</div>
-                <div class="ui-demo-title">{t("demo.industrial_multi_framework.title", language)}</div>
-                <div class="ui-demo-copy">
-                  {t("demo.industrial_multi_framework.copy", language)}
-                </div>
-                <div class="ui-demo-meta">
-                  {t("demo.industrial_multi_framework.meta", language)}
-                </div>
-                """,
-                unsafe_allow_html=True,
+        with multi_framework_column:
+            render_demo_card(
+                card_id="industrial-multi-framework",
+                container_key="demo_card_multiframework",
+                label=t("demo.industrial_multi_framework.label", language),
+                title=t("demo.industrial_multi_framework.title", language),
+                description=t("demo.industrial_multi_framework.copy", language),
+                metadata=t("demo.industrial_multi_framework.meta", language),
+                action_label=t("demo.industrial_multi_framework.open", language),
+                on_open=load_industrial_multi_framework_demo,
             )
-            if st.button(
-                t("demo.industrial_multi_framework.open", language),
-                type="primary",
-                use_container_width=True,
-            ):
-                load_industrial_multi_framework_demo()
 
     render_section_header(
         t("case.new.title", language),
@@ -1800,30 +1843,32 @@ def _render_module_routing(
                 _confirm_module(module_id)
             st.rerun()
 
-    st.markdown(f"### {t('questionnaire.unsupported.title', language)}")
-    if not route.unsupported_modules:
-        st.caption(t("questionnaire.unsupported.none", language))
-    for unsupported in route.unsupported_modules:
-        message_key = (
-            unsupported.message_keys.zh_cn_label_key
-            if language == "zh-CN"
-            else unsupported.message_keys.en_label_key
-        )
-        help_key = (
-            unsupported.message_keys.zh_cn_help_key
-            if language == "zh-CN"
-            else unsupported.message_keys.en_help_key
-        )
-        st.warning(
-            f"**{t_or(unsupported.display_module_key, unsupported.path_id, language)}**\n\n"
-            f"{t(message_key, language)} {t(help_key, language)}"
-        )
+    if route.unsupported_modules:
+        st.markdown(f"### {t('questionnaire.unsupported.title', language)}")
+        for unsupported in route.unsupported_modules:
+            message_key = (
+                unsupported.message_keys.zh_cn_label_key
+                if language == "zh-CN"
+                else unsupported.message_keys.en_label_key
+            )
+            help_key = (
+                unsupported.message_keys.zh_cn_help_key
+                if language == "zh-CN"
+                else unsupported.message_keys.en_help_key
+            )
+            st.warning(
+                f"**{t_or(unsupported.display_module_key, unsupported.path_id, language)}**\n\n"
+                f"{t(message_key, language)} {t(help_key, language)}"
+            )
 
-    with st.expander(t("questionnaire.screened.title", language), expanded=False):
-        if not route.screened_out_modules:
-            st.caption(t("questionnaire.screened.none", language))
-        for module_id in route.screened_out_modules:
-            st.write(_module_label(module_id, language))
+    if route.screened_out_modules:
+        with st.expander(
+            t("questionnaire.routing_audit.title", language),
+            expanded=False,
+        ):
+            st.caption(t("questionnaire.routing_audit.screened", language))
+            for module_id in route.screened_out_modules:
+                st.write(_module_label(module_id, language))
 
     _render_routed_follow_ups(bundle, case_id, facts, route, language)
 
@@ -1895,6 +1940,9 @@ def render_assessment_action(
             use_container_width=True,
         )
     if run_normal or run_with_gaps:
+        previous_selected_rule_id = st.session_state.get(
+            "selected_finding_rule_id"
+        )
         authorized_rule_ids = authorized_rule_ids_for_modules(
             route.confirmed_modules,
         )
@@ -1907,7 +1955,25 @@ def render_assessment_action(
             RUN_MODE_WITH_GAPS if run_with_gaps else RUN_MODE_COMPLETE
         )
         st.session_state.assessment_run_route = deepcopy(route)
-        st.session_state.selected_finding_id = None
+        current_rule_ids = {
+            finding.rule_id
+            for finding in selectable_findings(
+                st.session_state.assessment_report.findings
+            )
+        }
+        if previous_selected_rule_id in current_rule_ids:
+            st.session_state.selected_finding_rule_id = (
+                previous_selected_rule_id
+            )
+        elif previous_selected_rule_id is not None and current_rule_ids:
+            st.session_state.selected_finding_rule_id = next(
+                finding.rule_id
+                for finding in selectable_findings(
+                    st.session_state.assessment_report.findings
+                )
+            )
+        else:
+            st.session_state.selected_finding_rule_id = None
         st.session_state.assessment_view = VIEW_RESULTS
         st.rerun()
 
@@ -1972,6 +2038,8 @@ def render_result_finding_card(
     facts,
     schema_version: str,
     language: str,
+    *,
+    show_trace_action: bool = True,
 ) -> None:
     """Present one finding in user-first compliance review order."""
 
@@ -2049,11 +2117,11 @@ def render_result_finding_card(
                     "</div>",
                     unsafe_allow_html=True,
                 )
-            if st.button(
+            if show_trace_action and st.button(
                 t("evidence.view_trace", language),
-                key=f"open-evidence-{finding.finding_id}",
+                key=f"open-evidence-{finding.rule_id}",
             ):
-                st.session_state.selected_finding_id = finding.finding_id
+                st.session_state.selected_finding_rule_id = finding.rule_id
                 navigate(VIEW_EVIDENCE)
 
         with st.expander(t("navigation.technical_details", language), expanded=False):
@@ -2304,10 +2372,6 @@ def render_report(
     )
 
     primary_findings, _ = ordered_findings_for_presentation(report_findings)
-    primary_findings = prioritize_selected_finding(
-        primary_findings,
-        st.session_state.get("selected_finding_id"),
-    )
     primary_finding_ids = {
         finding.finding_id for finding in primary_findings
     }
@@ -2320,7 +2384,7 @@ def render_report(
     render_section_header(t("report.findings.title", language))
     if not report_findings:
         st.info(t("report.no_finding", language))
-    render_multi_finding_summary(primary_findings, language)
+    render_multi_finding_summary(report, primary_findings, language)
     for finding in primary_findings:
         render_result_finding_card(
             finding,
@@ -2328,6 +2392,7 @@ def render_report(
             facts,
             facts.schema_version,
             language,
+            show_trace_action=len(primary_findings) == 1,
         )
 
     if len(primary_findings) > 1:
@@ -2770,30 +2835,28 @@ def render_evidence_workspace(
         st.info(t("evidence.trace.no_finding", language))
         return
 
-    primary_findings, screened_out_findings = ordered_findings_for_presentation(
-        report.findings
-    )
-    finding_by_id = {
-        finding.finding_id: finding
-        for finding in (*primary_findings, *screened_out_findings)
+    findings = selectable_findings(report.findings)
+    finding_by_rule_id = {
+        finding.rule_id: finding for finding in findings
     }
-    options = list(finding_by_id)
-    selected_id = st.session_state.get("selected_finding_id")
-    if selected_id not in finding_by_id:
-        selected_id = options[0]
-    selected_id = st.selectbox(
-        t("evidence.trace.select", language),
-        options=options,
-        index=options.index(selected_id),
-        format_func=lambda finding_id: finding_title(
-            finding_by_id[finding_id],
-            language,
-        ),
+    selected_rule_id = render_finding_navigation(
+        report,
+        findings,
+        language,
+        context="evidence",
     )
-    st.session_state.selected_finding_id = selected_id
-    finding = finding_by_id[selected_id]
+    if selected_rule_id is None:
+        st.info(t("evidence.trace.no_finding", language))
+        return
+    finding = finding_by_rule_id[selected_rule_id]
+    st.markdown(
+        '<div class="ui-current-finding">'
+        f'{escape(t("evidence.trace.currently_viewing", language, finding=finding_navigation_title(finding, language)))}'
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
-    bound_evidence = evidence_for_finding(report, selected_id)
+    bound_evidence = evidence_for_finding(report, finding.finding_id)
     _, chain_column, _ = st.columns([1, 6, 1])
     with chain_column:
         render_compliance_chain(finding, bound_evidence, facts, language)

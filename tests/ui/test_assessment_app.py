@@ -111,6 +111,22 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         self.assertIn("border: 0", ENTERPRISE_STYLES)
 
     def test_landing_renders_both_demo_entry_points(self) -> None:
+        source = APP_PATH.read_text(encoding="utf-8")
+        self.assertEqual(source.count("render_demo_card("), 3)
+        self.assertEqual(
+            source.count('st.container(key="demo_cards_grid")'),
+            1,
+        )
+        for container_key in (
+            "demo_card_recruitment",
+            "demo_card_industrial",
+            "demo_card_multiframework",
+        ):
+            self.assertEqual(
+                source.count(f'container_key="{container_key}"'),
+                1,
+            )
+
         app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
 
         self.assertEqual(len(app.exception), 0)
@@ -118,6 +134,23 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         self.assertIn("Open recruitment demo", button_labels)
         self.assertIn("Open industrial demo", button_labels)
         self.assertIn("Open multi-framework demo", button_labels)
+        english_cards = "\n".join(
+            item.value for item in app.markdown if "data-demo-card=" in item.value
+        )
+        self.assertEqual(english_cards.count('class="ui-demo-card"'), 3)
+        self.assertEqual(english_cards.count("ui-demo-card__content"), 3)
+        self.assertEqual(english_cards.count("ui-demo-card__footer"), 3)
+
+        app.radio[0].set_value("zh-CN")
+        app.run(timeout=10)
+
+        chinese_cards = "\n".join(
+            item.value for item in app.markdown if "data-demo-card=" in item.value
+        )
+        self.assertEqual(chinese_cards.count('class="ui-demo-card"'), 3)
+        self.assertEqual(chinese_cards.count("ui-demo-card__content"), 3)
+        self.assertEqual(chinese_cards.count("ui-demo-card__footer"), 3)
+        self.assertIn("工业机器人安全与数据访问联合评估", chinese_cards)
 
     def test_multiframework_demo_shows_two_independent_framework_findings(self) -> None:
         app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
@@ -147,15 +180,27 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         framework_summaries = "\n".join(
             item.value
             for item in app.markdown
-            if '<div class="ui-framework-finding-summary"' in item.value
+            if "ui-finding-navigation-card" in item.value
         )
         self.assertIn('data-framework="EU_AI_ACT"', framework_summaries)
         self.assertIn('data-framework="EU_DATA_ACT"', framework_summaries)
         self.assertEqual(
             framework_summaries.count(
-                '<div class="ui-framework-finding-summary"'
+                'data-finding-option="'
             ),
             2,
+        )
+        self.assertIn(
+            'data-finding-option="AI_ACT_HIGH_RISK_PRODUCT_SAFETY"',
+            framework_summaries,
+        )
+        self.assertIn(
+            'data-finding-option="EU_DATA_ACT_RELEVANCE"',
+            framework_summaries,
+        )
+        self.assertEqual(
+            app.session_state["selected_finding_rule_id"],
+            AI_ACT_PRODUCT_SAFETY_RULE_ID,
         )
         recommendations = "\n".join(
             item.value
@@ -176,37 +221,69 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
         self._open_industrial_multiframework_report(app)
         report = app.session_state["assessment_report"]
-        findings = {item.rule_id: item for item in report.findings}
+        report_snapshot = report.to_dict()
+        evidence_ids = [item.evidence_id for item in report.evidence]
 
         trace_buttons = [
             button
             for button in app.button
-            if button.label == "View full evidence trace"
+            if button.label
+            in {
+                "View AI Act Evidence Trace",
+                "View Data Act Evidence Trace",
+            }
         ]
         self.assertEqual(len(trace_buttons), 2)
-        trace_buttons[1].click()
+        next(
+            button
+            for button in trace_buttons
+            if button.label == "View Data Act Evidence Trace"
+        ).click()
         app.run(timeout=10)
 
         self.assertEqual(
-            app.session_state["selected_finding_id"],
-            findings[EU_DATA_ACT_RULE_ID].finding_id,
+            app.session_state["selected_finding_rule_id"],
+            EU_DATA_ACT_RULE_ID,
         )
         data_markup = "\n".join(item.value for item in app.markdown)
         data_trace_markup = data_markup.split(
             '<section class="ui-section-header"><h2 class="ui-section-title">Findings</h2>'
         )[0]
-        self.assertIn("Data Act relevance potentially applies", data_trace_markup)
-        self.assertIn("Article 2(5)", data_trace_markup)
-        self.assertNotIn("Article 3(14)", data_trace_markup)
-
-        app.selectbox[0].set_value(
-            findings[AI_ACT_PRODUCT_SAFETY_RULE_ID].finding_id
+        self.assertEqual(
+            data_trace_markup.count('data-finding-option="'),
+            2,
         )
+        self.assertIn("Data Act relevance potentially applies", data_trace_markup)
+        self.assertIn(
+            "Currently viewing: EU Data Act relevance screening",
+            data_trace_markup,
+        )
+        self.assertIn("Article 1(1)(a)", data_trace_markup)
+        self.assertIn("Article 2(5)", data_trace_markup)
+        self.assertIn("Article 2(6)", data_trace_markup)
+        self.assertNotIn("Article 3(14)", data_trace_markup)
+        self.assertNotIn("Annex I, Section A, point 1", data_trace_markup)
+        self.assertEqual(
+            len(
+                [
+                    item
+                    for item in app.expander
+                    if item.label.startswith("Official excerpt")
+                ]
+            ),
+            3,
+        )
+
+        next(
+            button
+            for button in app.button
+            if button.label == "View AI Act Evidence Trace"
+        ).click()
         app.run(timeout=10)
 
         self.assertEqual(
-            app.session_state["selected_finding_id"],
-            findings[AI_ACT_PRODUCT_SAFETY_RULE_ID].finding_id,
+            app.session_state["selected_finding_rule_id"],
+            AI_ACT_PRODUCT_SAFETY_RULE_ID,
         )
         ai_markup = "\n".join(item.value for item in app.markdown)
         ai_trace_markup = ai_markup.split(
@@ -214,10 +291,70 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         )[0]
         self.assertIn("Article 3(14)", ai_trace_markup)
         self.assertIn("Article 6(1)(a)", ai_trace_markup)
+        self.assertIn("Article 6(1)(b)", ai_trace_markup)
+        self.assertIn("Annex I, Section A, point 1", ai_trace_markup)
         self.assertNotIn("Article 2(5)", ai_trace_markup)
+        self.assertNotIn("Article 1(1)(a)", ai_trace_markup)
+        self.assertIn(
+            "Currently viewing: EU AI Act Article 6(1) product-safety route",
+            ai_trace_markup,
+        )
+        self.assertEqual(
+            len(
+                [
+                    item
+                    for item in app.expander
+                    if item.label.startswith("Official excerpt")
+                ]
+            ),
+            4,
+        )
         self.assertIn(
             "ANNEX_I_A_01_MACHINERY_DIRECTIVE_2006_42_EC",
             {item.value for item in app.code},
+        )
+        self.assertEqual(
+            app.session_state["assessment_report"].to_dict(),
+            report_snapshot,
+        )
+        self.assertEqual(
+            [item.evidence_id for item in app.session_state["assessment_report"].evidence],
+            evidence_ids,
+        )
+
+    def test_multiframework_rerun_preserves_valid_canonical_finding_selection(
+        self,
+    ) -> None:
+        app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
+        self._open_industrial_multiframework_report(app)
+
+        next(
+            button
+            for button in app.button
+            if button.label == "View Data Act Evidence Trace"
+        ).click()
+        app.run(timeout=10)
+        self.assertEqual(
+            app.session_state["selected_finding_rule_id"],
+            EU_DATA_ACT_RULE_ID,
+        )
+
+        next(
+            button for button in app.button if button.label == "Assessment"
+        ).click()
+        app.run(timeout=10)
+        next(
+            button for button in app.button if button.label == "Run assessment"
+        ).click()
+        app.run(timeout=10)
+
+        self.assertEqual(
+            app.session_state["selected_finding_rule_id"],
+            EU_DATA_ACT_RULE_ID,
+        )
+        self.assertEqual(
+            [item.rule_id for item in app.session_state["assessment_report"].findings],
+            [AI_ACT_PRODUCT_SAFETY_RULE_ID, EU_DATA_ACT_RULE_ID],
         )
 
     def test_multiframework_language_and_scenario_switch_preserve_then_isolate_state(self) -> None:
@@ -225,13 +362,16 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         self._open_industrial_multiframework_report(app)
         report = app.session_state["assessment_report"]
         report_snapshot = report.to_dict()
-        selected = report.findings[1].finding_id
-        app.session_state["selected_finding_id"] = selected
+        selected = report.findings[1].rule_id
+        app.session_state["selected_finding_rule_id"] = selected
 
         app.radio[0].set_value("zh-CN")
         app.run(timeout=10)
 
-        self.assertEqual(app.session_state["selected_finding_id"], selected)
+        self.assertEqual(
+            app.session_state["selected_finding_rule_id"],
+            selected,
+        )
         self.assertEqual(
             app.session_state["assessment_report"].to_dict(), report_snapshot
         )
@@ -242,6 +382,27 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         self.assertIn(
             "两项相互独立的监管筛查形成了实质性结论。",
             [item.value for item in app.info],
+        )
+        localized_navigation = "\n".join(
+            item.value
+            for item in app.markdown
+            if "ui-finding-navigation-card" in item.value
+        )
+        self.assertIn(
+            "《欧盟人工智能法案》第6条第1款产品安全路径",
+            localized_navigation,
+        )
+        self.assertIn(
+            "《欧盟数据法案》相关性筛查",
+            localized_navigation,
+        )
+        self.assertIn(
+            "查看《欧盟人工智能法案》证据链",
+            [button.label for button in app.button],
+        )
+        self.assertIn(
+            "查看《欧盟数据法案》证据链",
+            [button.label for button in app.button],
         )
 
         next(
@@ -260,7 +421,7 @@ class AssessmentAppSmokeTests(unittest.TestCase):
             [EU_DATA_ACT_RULE_ID],
         )
         self.assertIsNone(app.session_state["assessment_report"])
-        self.assertIsNone(app.session_state["selected_finding_id"])
+        self.assertIsNone(app.session_state["selected_finding_rule_id"])
         self.assertIsNone(app.session_state["assessment_run_route"])
 
     def test_industrial_demo_opens_assessment_workspace(self) -> None:
@@ -281,6 +442,58 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         self.assertIn("ui-system-summary", workspace_markup)
         self.assertIn("ForgeMonitor AI", workspace_markup)
         self.assertIn("Technical details", [item.label for item in app.expander])
+
+    def test_multiframework_routes_hide_unsupported_and_scope_screened_audit(
+        self,
+    ) -> None:
+        app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
+        next(
+            button
+            for button in app.button
+            if button.label == "Open multi-framework demo"
+        ).click()
+        app.run(timeout=10)
+
+        self.assertFalse(
+            any(
+                "Potentially relevant routes not yet supported" in item.value
+                for item in app.markdown
+            )
+        )
+        self.assertFalse(
+            any(
+                "No unsupported route was identified" in item.value
+                for item in app.caption
+            )
+        )
+        audit = next(
+            item
+            for item in app.expander
+            if item.label == "Technical details / Routing audit"
+        )
+        self.assertFalse(audit.proto.expanded)
+        self.assertEqual(
+            [item.value for item in audit.caption],
+            ["Implemented modules excluded by current facts"],
+        )
+        self.assertEqual(
+            [item.value for item in audit.markdown],
+            [
+                "AI Act employment high-risk screening",
+                "GDPR Article 22 relevance screening",
+            ],
+        )
+        primary_markup = "\n".join(
+            item.value for item in app.markdown if item not in audit.markdown
+        )
+        self.assertNotIn(
+            "AI Act employment high-risk screening",
+            primary_markup,
+        )
+        self.assertNotIn(
+            "GDPR Article 22 relevance screening",
+            primary_markup,
+        )
 
     def test_product_safety_module_uses_confirmed_bilingual_questionnaire(self) -> None:
         instrument_id = "ANNEX_I_A_01_MACHINERY_DIRECTIVE_2006_42_EC"
@@ -1059,8 +1272,15 @@ class AssessmentAppSmokeTests(unittest.TestCase):
             " ".join(select.label.casefold() for select in app.selectbox),
         )
         warnings = "\n".join(item.value for item in app.warning)
+        self.assertIn("Potentially relevant routes not yet supported", "\n".join(
+            item.value for item in app.markdown
+        ))
         self.assertIn("AI Act credit and essential-services assessment", warnings)
         self.assertIn("not yet implemented", warnings)
+        self.assertIn(
+            "No applicability or compliance conclusion is produced",
+            warnings,
+        )
         self.assertTrue(
             next(
                 button for button in app.button if button.label == "Run assessment"
@@ -1233,7 +1453,7 @@ class AssessmentAppSmokeTests(unittest.TestCase):
             app.session_state["assessment_confirmed_modules"],
         )
         self.assertIsNone(app.session_state["assessment_report"])
-        self.assertIsNone(app.session_state["selected_finding_id"])
+        self.assertIsNone(app.session_state["selected_finding_rule_id"])
         self.assertEqual(app.session_state["ui_language"], "zh-CN")
         self.assertIsNot(bundle, original_bundle)
 
@@ -1281,6 +1501,12 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         self.assertNotIn(
             "employment",
             " ".join(select.label.casefold() for select in app.selectbox),
+        )
+        warnings = "\n".join(item.value for item in app.warning)
+        self.assertIn("AI Act judicial-system assessment", warnings)
+        self.assertIn(
+            "No applicability or compliance conclusion is produced",
+            warnings,
         )
         run_button = next(
             button for button in app.button if button.label == "Run assessment"
@@ -1388,7 +1614,7 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         original_facts = original_bundle.case_service.get_case(
             original_case_id
         ).current_facts.to_dict()
-        app.session_state["selected_finding_id"] = original_finding.finding_id
+        app.session_state["selected_finding_rule_id"] = original_finding.rule_id
         original_citations = [
             basis.citation for basis in original_finding.legal_basis
         ]
@@ -1422,8 +1648,8 @@ class AssessmentAppSmokeTests(unittest.TestCase):
             original_facts,
         )
         self.assertEqual(
-            app.session_state["selected_finding_id"],
-            original_finding.finding_id,
+            app.session_state["selected_finding_rule_id"],
+            original_finding.rule_id,
         )
         self.assertEqual(
             app.session_state["assessment_confirmed_modules"],
@@ -1555,8 +1781,8 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         recruitment_case_id = app.session_state["assessment_case_id"]
         recruitment_bundle = app.session_state["assessment_workflow_bundle"]
         recruitment_report = app.session_state["assessment_report"]
-        app.session_state["selected_finding_id"] = (
-            recruitment_report.findings[0].finding_id
+        app.session_state["selected_finding_rule_id"] = (
+            recruitment_report.findings[0].rule_id
         )
 
         app.radio[0].set_value("zh-CN")
@@ -1576,7 +1802,7 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         self.assertNotEqual(industrial_case_id, recruitment_case_id)
         self.assertIsNot(industrial_bundle, recruitment_bundle)
         self.assertIsNone(app.session_state["assessment_report"])
-        self.assertIsNone(app.session_state["selected_finding_id"])
+        self.assertIsNone(app.session_state["selected_finding_rule_id"])
         self.assertEqual(app.session_state["demo_scenario"], "industrial")
         industrial_markup = "\n".join(item.value for item in app.markdown)
         self.assertIn("工业 AI 互联机械监测", industrial_markup)
@@ -1694,8 +1920,8 @@ class AssessmentAppSmokeTests(unittest.TestCase):
         app.session_state["assessment_workflow_bundle"] = replacement_bundle
         app.session_state["assessment_case_id"] = replacement_case.case_id
         app.session_state["assessment_report"] = stale_report
-        app.session_state["selected_finding_id"] = (
-            stale_report.findings[0].finding_id
+        app.session_state["selected_finding_rule_id"] = (
+            stale_report.findings[0].rule_id
         )
         app.session_state["assessment_view"] = "results"
 
@@ -1703,7 +1929,7 @@ class AssessmentAppSmokeTests(unittest.TestCase):
 
         self.assertEqual(len(app.exception), 0)
         self.assertIsNone(app.session_state["assessment_report"])
-        self.assertIsNone(app.session_state["selected_finding_id"])
+        self.assertIsNone(app.session_state["selected_finding_rule_id"])
         self.assertEqual(app.session_state["assessment_view"], "workspace")
         markup = "\n".join(item.value for item in app.markdown)
         self.assertNotIn(
