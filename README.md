@@ -1,186 +1,347 @@
-# EU AI Act Compliance Assessment Platform
+# EU Digital Regulation Assessment Platform
 
-A legal engineering prototype for structured, evidence-grounded assessment under the EU Artificial Intelligence Act (Regulation (EU) 2024/1689).
+A deterministic, evidence-grounded legal engineering prototype for selected regulatory pathways under the EU AI Act, GDPR, and EU Data Act.
 
-The project began as a legal retrieval and chat prototype. It is evolving into a rule-driven AI governance assessment framework in which retrieval supports legal findings rather than acting as the primary decision mechanism.
+The project began as a legal retrieval experiment. It now treats retrieval as supporting infrastructure for structured legal assessment rather than as the decision-maker:
 
-## Overview
+> **Rules decide. RAG supports. LLM explains.**
 
-EU AI Act compliance requires more than locating relevant provisions. An organisation must establish facts about an AI system, determine its regulatory role and risk category, identify potentially applicable obligations, and preserve a defensible link between each conclusion and its legal authority.
+Deterministic, versioned rules produce formal assessment Findings. Dynamic questionnaires collect canonical facts, users explicitly confirm which assessment modules may run, and only authorized rules enter the canonical report. Legal Evidence then supports each Finding with traceable authority.
 
-Document retrieval alone cannot reliably perform that analysis: similar provisions can have different legal effects, classification depends on structured factual conditions, and missing information must remain visible rather than being filled by inference.
+LLM output is not used to determine the formal legal result. If an explanatory LLM layer is added or used later, it must remain downstream of the rules and Evidence. Every Finding is a preliminary screening conclusion—not legal advice, certification, or a final compliance determination.
 
-This platform therefore combines:
-
-- structured facts collected through a questionnaire;
-- deterministic, versioned legal rules;
-- legal corpus retrieval for supporting authority;
-- traceable findings and missing-information records; and
-- standardized compliance reports suitable for review.
-
-The output is a preliminary compliance assessment, not legal advice or a definitive legal classification.
-
-## Architecture
+## How the platform works
 
 ```text
-AI System Facts
-        ↓
-Questionnaire Engine
-        ↓
-Assessment Workflow
-        ↓
-Rule Engine
-        ↓
-Legal Findings
-        ↓
-Evidence Retrieval
-        ↓
-Compliance Report
+AI system and use-case facts
+            ↓
+Dynamic questionnaire routing
+            ↓
+Explicit module confirmation
+            ↓
+Authorized deterministic rules
+            ↓
+Framework-specific Findings
+            ↓
+Atomic legal Evidence binding
+            ↓
+Canonical assessment report
 ```
 
-The layers have deliberately separate responsibilities. Questionnaires collect facts, rules evaluate legal conditions, evidence services bind findings to authority, and the report layer produces a deterministic and reviewable output. Assessment runs remain immutable snapshots of the facts and rule versions used.
+The layers have separate responsibilities:
 
-## Core Capabilities
+- **Questionnaires** collect and normalize facts without deciding legal outcomes.
+- **Routing** suggests implemented or unsupported pathways deterministically.
+- **Users** confirm the implemented modules that may enter the assessment.
+- **Rules** evaluate only authorized pathways and generate inspectable Findings.
+- **Evidence services** resolve the legal references authored by each rule.
+- **Reports** preserve the relationship between facts, rules, Findings, missing information, recommendations, and Evidence.
 
-- **EU AI Act legal corpus retrieval** — Legal-structure-aware chunking and vector retrieval across articles, recitals, and annexes.
-- **Structured assessment workflow** — Case facts, missing-fact validation, assessment execution, evidence resolution, and report generation.
-- **Rule-based risk classification** — Typed, reusable, versioned rules with explicit required facts and legal-basis metadata.
-- **Evidence-grounded findings** — Legal findings can be connected to citations and excerpts without placing retrieval inside the rule logic.
-- **Traceable compliance reports** — Deterministic reports preserve the path from facts to findings, rule versions, and supporting evidence.
+Assessment runs are immutable snapshots. Switching scenarios clears case-owned outputs, while switching language preserves the active case, report, and selected Finding.
 
-## Demo
+## Current assessment coverage
 
-The Streamlit prototype demonstrates the structured assessment workflow from case creation to an evidence-grounded report. A user can:
+The prototype currently implements four preliminary screening modules. It does not provide complete coverage of any regulation.
 
-1. create an assessment case or load the prepared recruitment AI scenario;
-2. review and provide the facts required by the registered rule;
-3. run the deterministic assessment workflow;
-4. inspect the preliminary classification, legal basis, and reasoning trace; and
-5. review the supporting legal evidence and report recommendations.
+### EU AI Act employment high-risk screening
 
-The interface keeps presentation separate from legal reasoning: Streamlit collects and displays information, while the assessment engine, evidence service, and report builder produce the result.
+Rule ID: `AI_ACT_HIGH_RISK_EMPLOYMENT`
 
-### Recruitment AI Screening Scenario
+- Screens employment, worker-management, and recruitment contexts.
+- Evaluates the currently implemented Article 6 and Annex III point 4(a) pathway.
+- Considers covered employment functions and material influence on employment-related decisions.
+- Produces an independent EU AI Act Finding and Evidence Trace.
 
-The included demonstration models an AI system used by a company to screen and rank job candidates. Its output materially influences access to employment opportunities.
+### EU AI Act Article 6(1) product and safety-component screening
 
-The assessment workflow collects these facts and applies a preliminary employment high-risk rule based on Article 6 and Annex III point 4(a) of the EU AI Act. Where the required conditions are satisfied, the result is expressed cautiously as **potentially applies**, preserving the need for further legal and factual review.
+Rule ID: `AI_ACT_HIGH_RISK_PRODUCT_SAFETY`
 
-The reusable scenario data is stored in `tests/fixtures/recruitment_ai_case.json` and can be loaded directly from the Streamlit landing page.
+- Evaluates whether AI is itself a product or a safety component.
+- Validates a selected instrument against the structured Annex I catalogue.
+- Requires separate, explicit confirmation that the selected Annex I instrument covers the product.
+- Separately evaluates whether third-party conformity assessment is required.
+- Authors atomic references to Article 6(1)(a), Article 6(1)(b), the selected Annex I point, and Article 3(14) when the safety-component definition is relied upon.
 
-### Screenshots
+### GDPR Article 22 relevance screening
 
-> **Assessment facts input** — Screenshot placeholder for the populated structured-facts form.
+Rule ID: `GDPR_ARTICLE22_RELEVANCE`
 
-> **Assessment report** — Screenshot placeholder for the preliminary classification and report summary.
+- Screens personal-data processing.
+- Screens automated individual decision-making.
+- Considers legal or similarly significant effects through the currently implemented material-influence fact.
+- Produces a preliminary Article 22 relevance Finding without deciding applicability, exceptions, safeguards, or compliance.
 
-> **Evidence trace** — Screenshot placeholder for the reasoning trace and supporting legal evidence.
+### EU Data Act relevance screening
 
-## Project Status
+Rule ID: `EU_DATA_ACT_RELEVANCE`
 
-- ✅ Structured assessment workflow implemented
-- ✅ Evidence-grounded report generation implemented
-- ✅ Streamlit assessment prototype available
-- 🚧 Additional EU AI Act rules and regulatory domains in development
+- Screens connected products and related services.
+- Screens whether product or related-service data are generated.
+- Produces an independent Data Act relevance Finding without deciding actor roles, obligations, exemptions, or compliance.
 
-## How to Run the Demo
+## Public demo scenarios
 
-After installing the project dependencies, launch the assessment interface from the repository root:
+The Streamlit landing page provides three prepared demonstrations.
+
+| Demo | Open with | Expected preliminary output |
+|---|---|---|
+| Recruitment AI Screening | **Open recruitment demo** | One `AI_ACT_HIGH_RISK_EMPLOYMENT` Finding; `potentially_applies`; seven Evidence records |
+| Industrial AI Monitoring | **Open industrial demo** | One `EU_DATA_ACT_RELEVANCE` Finding; `potentially_applies`; three Evidence records |
+| Industrial Robot Safety and Data Access | **Open multi-framework demo** | Two independent Findings; four AI Act Evidence records and three Data Act Evidence records; seven total |
+
+The multi-framework demo does not merge the AI Act and Data Act analyses. Each Finding retains its own:
+
+- factual inputs and legal predicates;
+- reason codes and legal references;
+- recommendations; and
+- independently selectable Evidence Trace.
+
+The repository also contains a tested custom GDPR lending acceptance path. It demonstrates dynamic routing to the implemented GDPR module while presenting the currently unsupported AI Act credit route as informational only.
+
+## Current platform capabilities
+
+- Typed `AssessmentFacts` with separate system, scope, organisation, supply-chain, use-context, practice, high-risk, product-regulation, data-protection, and Data Act namespaces.
+- Deterministic, versioned legal-rule evaluation.
+- Dynamic questionnaire definitions and rule-driven routing.
+- Deterministic controlled routing suggestions and explicit module confirmation.
+- English and Simplified Chinese presentation.
+- Canonical normalization of controlled inputs.
+- Explicit `Unknown` handling, distinct from an unanswered question.
+- Dependency-aware invalidation of downstream facts and stale reports.
+- Fact provenance for questionnaire and demo inputs.
+- Authorized rule execution scope and canonical report scoping.
+- Structured missing-information output and incomplete-assessment presentation.
+- Multi-framework reports with independently selectable Findings.
+- Per-Finding Evidence Trace from facts to rule, legal basis, and source Evidence.
+- Framework-isolated, metadata-v2 Evidence with stable IDs.
+- Clean-checkout runtime Evidence packs.
+- Official EUR-Lex provenance and manifest validation.
+- Scenario-state isolation and language-state preservation.
+
+## Evidence architecture
+
+Official EUR-Lex text is used as the authoritative legal source for the committed metadata-v2 Evidence packs. Rules author explicit legal references; the Evidence layer resolves only records that match those references.
+
+The retrieval adapter:
+
+- prioritizes exact atomic metadata-v2 records over broad legacy chunks;
+- expands supported compound references into their atomic citations;
+- preserves the original legal basis written by the rule;
+- isolates Evidence by legal instrument and regulatory framework;
+- fails closed against cross-framework Evidence leakage; and
+- validates stable Evidence IDs, normalized excerpt hashes, manifests, and source metadata.
+
+Runtime Evidence loading is local and deterministic. It does not require network access, official-source downloads, or candidate corpus builds.
+
+Tracked runtime packs:
+
+- `data/legal_evidence/eu_ai_act_product_safety_metadata_v2.json` — 23 atomic AI Act records.
+- `data/legal_evidence/eu_data_act_relevance_metadata_v2.json` — three atomic Data Act records.
+
+Downloaded official sources in `corpus_sources/` and generated candidates in `corpus_builds/` are build inputs, not deployment requirements.
+
+## Current maturity
+
+The present system primarily implements **Level 1: regulatory relevance and classification screening**.
+
+It can currently help answer:
+
+- which implemented regulatory pathway may be relevant;
+- whether confirmed facts satisfy a specific implemented classification or relevance screen;
+- which legal provisions support that preliminary result; and
+- which information remains unresolved.
+
+It does **not** yet fully determine:
+
+- which economic operator holds every relevant legal role;
+- the complete set of duties triggered by a classification;
+- whether each substantive obligation has been performed;
+- whether business documentation is sufficient compliance Evidence; or
+- whether the system is legally compliant overall.
+
+This boundary is deliberate. Classification and relevance screens are entry points for deeper legal analysis, not substitutes for it.
+
+## Scope limitations
+
+The platform does not currently provide:
+
+- complete EU AI Act coverage;
+- Article 6(2) assessment or complete Annex III coverage;
+- Article 6(3) exception analysis;
+- Article 5 prohibited-practice assessment;
+- complete provider or deployer role and obligation mapping;
+- a full conformity-assessment workflow;
+- complete GDPR applicability or compliance analysis;
+- complete Data Act role and obligation analysis;
+- certification or assurance;
+- final legal advice; or
+- authoritative legal classification by an LLM.
+
+Unsupported controlled routes may be disclosed in the interface without generating a formal Finding. A screened-out implemented module appears only in the routing audit and does not enter the canonical report unless explicitly confirmed and executed.
+
+## Near-term legal deepening
+
+The next development stage is intended to model the consequences of the existing entry-screening rules. The following areas are planned or under development; they are not current platform capabilities and may not map one-to-one to future rules.
+
+### EU AI Act high-risk consequence chain
+
+- Provider and deployer role identification.
+- Risk-management, data-governance, technical-documentation, record-keeping, and logging duties.
+- Transparency, instructions for use, and human oversight.
+- Accuracy, robustness, and cybersecurity.
+- Deployer monitoring and use obligations.
+- Fundamental-rights impact assessment where relevant.
+- Conformity-assessment responsibility boundaries.
+
+### GDPR automated-decision consequence chain
+
+- Controller and processor roles.
+- Lawful basis and special-category data.
+- Article 22 exceptions and meaningful human involvement.
+- Safeguards, data-subject rights, and transparency.
+- DPIA relevance, accountability, and compliance Evidence.
+
+### Data Act access and role chain
+
+- User, data-holder, and third-party roles.
+- Identification of product and related-service data.
+- Access requests, data sharing, and contractual arrangements.
+- Trade-secret safeguards.
+- Charging, compensation, and implementation Evidence.
+
+## Local installation
+
+Verified environment:
+
+- Python 3.12
+- Streamlit 1.56.0
+
+```bash
+git clone https://github.com/miles2005-web/eu-ai-act-legal-rag-prototype.git
+cd eu-ai-act-legal-rag-prototype
+git checkout feature/assessment-engine-v2
+python -m venv venv
+```
+
+macOS or Linux:
+
+```bash
+source venv/bin/activate
+```
+
+Windows PowerShell:
+
+```powershell
+venv\Scripts\Activate.ps1
+```
+
+Install the committed dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Launch the assessment workspace:
 
 ```bash
 streamlit run assessment_app.py
 ```
 
-Then open `http://localhost:8501` and select **Load Recruitment AI Screening Demo**.
+The assessment application does not require:
 
-The same scenario can also be executed without a UI:
+- an API key;
+- `chromadb`;
+- `corpus_sources/`;
+- `corpus_builds/`; or
+- runtime network access for the committed Evidence packs.
+
+The recruitment scenario is also available as a CLI demonstration:
 
 ```bash
 python scripts/run_demo_assessment.py
 ```
 
-## Technical Stack
+## Test status
 
-- Python and typed domain models
-- Streamlit for the assessment workflow and existing legal retrieval prototype
-- ChromaDB and exported vector data for legal corpus retrieval
-- Versioned rule engine architecture
-- Legal-structure-aware PDF processing and chunking
-- Deterministic assessment workflow and report generation
+Release-audit snapshot: **27 July 2026**.
 
-## Repository Structure
+- Fresh Python 3.12 installation from `requirements.txt`: passed.
+- Full suite: 289 tests passed.
+- UI suite: 92 tests passed.
+- English/Simplified Chinese browser switching: passed.
+- English and Chinese equal-height demo-card browser checks: passed.
+- Recruitment, Industrial, multi-framework Industrial, and GDPR lending acceptance paths: passed.
+
+Canonical validation commands:
+
+```bash
+python -m compileall -q assessment_app.py src scripts tests
+python -m unittest discover -s tests -p "test_*.py" -q
+python -m unittest discover -s tests/ui -p "test_*.py" -q
+git diff --check
+```
+
+These figures are a dated verification snapshot, not a permanent guarantee for future commits.
+
+## Deployment readiness
+
+- Streamlit entry point: `assessment_app.py`
+- Python version: 3.12
+- Dependency source: `requirements.txt`
+- Assessment-app secrets: none required
+- Runtime legal assets: committed Evidence packs, manifests, Annex I catalogue, demo fixtures, and the legacy vector asset used by existing retrieval
+
+The runtime Evidence packs must remain tracked. `corpus_sources/` and `corpus_builds/` are not deployment inputs. The current feature branch has passed a clean-clone installation, test, launch, and browser smoke audit; this does not imply that a public deployment currently exists.
+
+## Legacy retrieval and ingestion utilities
+
+The repository retains earlier chat and ingestion code for project history and optional development work:
+
+- `app_chroma.py`
+- `run_pipeline_chroma.py`
+
+Those legacy executables are not required to launch `assessment_app.py`. Chroma/OpenRouter scripts are legacy or optional development utilities, and `chromadb` is intentionally excluded from the standard assessment dependency set.
+
+The tracked `vector_store.json` is different: it remains a legacy legal-knowledge asset used by the current retrieval compatibility layer and must remain available to the assessment runtime.
+
+Running the legacy ingestion pipeline requires separate dependencies, source data, credentials, and setup. It is outside the standard assessment installation documented above.
+
+## Repository structure
 
 ```text
-├── assessment_app.py               # Streamlit assessment workflow prototype
-├── app_chroma.py                    # Existing Streamlit legal retrieval prototype
-├── run_pipeline_chroma.py           # Chroma ingestion pipeline
-├── vector_store.json                # Exported legal corpus vectors
+├── assessment_app.py                     # Streamlit assessment workspace
+├── requirements.txt                      # Standard assessment dependencies
+├── config/
+│   ├── ai_act_annex_i_instruments.json   # Structured Annex I catalogue
+│   ├── *_evidence_manifest.json           # Runtime-pack validation manifests
+│   └── legal_sources.json                 # Legal instrument catalogue
+├── data/legal_evidence/                   # Tracked metadata-v2 runtime packs
 ├── scripts/
-│   ├── evaluate_retrieval.py        # Retrieval evaluation
-│   └── run_demo_assessment.py       # End-to-end assessment demonstration
+│   ├── run_demo_assessment.py             # Recruitment CLI demo
+│   └── build_*_candidate_corpus.py        # Official-source candidate builders
 ├── src/
-│   ├── ingest.py                    # Legal document parsing
-│   ├── legal_chunks.py              # Legal-structure-aware chunking
-│   └── assessment/
-│       ├── case/                    # Assessment case lifecycle
-│       ├── evidence/                # Evidence models, service, and retrieval adapter
-│       ├── questionnaire/           # Question definitions and missing-fact routing
-│       ├── report/                  # Deterministic compliance reports
-│       ├── rules/                   # Rule contracts, registry, and legal rules
-│       ├── workflow/                # Assessment orchestration
-│       ├── engine.py                # Rule execution runtime
-│       ├── facts.py                 # Structured assessment facts
-│       └── findings.py              # Legal finding model
+│   ├── assessment/
+│   │   ├── facts.py                       # Facts, namespaces, provenance
+│   │   ├── rules/                         # Deterministic regulatory rules
+│   │   ├── questionnaire/                 # Definitions, router, invalidation
+│   │   ├── product_regulation/            # Annex I catalogue domain
+│   │   ├── evidence/                      # Evidence models and services
+│   │   ├── report/                        # Canonical report models and builder
+│   │   ├── workflow/                      # Authorized assessment orchestration
+│   │   └── demo/                          # Reusable dependency factory
+│   ├── ui/                                # Bilingual presentation components
+│   ├── eurlex_ai_act.py                   # Official AI Act source adapter
+│   └── eurlex_html.py                     # Official Data Act source adapter
 └── tests/
-    ├── assessment/                  # Domain and workflow tests
-    └── fixtures/                    # Reusable assessment scenarios
+    ├── assessment/                        # Domain and workflow regressions
+    ├── fixtures/                          # Public demonstration cases
+    └── ui/                                # Streamlit and presentation tests
 ```
 
-## Legal Retrieval Foundation
+## Project context
 
-The corpus pipeline preserves Chapter, Section, Article, Recital, and Annex boundaries rather than splitting legislation only by token length. This matters because EU AI Act classification provisions and their consequences are distributed across linked legal structures—for example, Article 6 and Annex III.
-
-The current retrieval corpus includes the EU AI Act and supporting EU digital-regulation materials. Retrieval is used to supply legal evidence; it does not replace structured fact collection or rule evaluation.
-
-## Running Locally
-
-Create an environment and install the project dependencies:
-
-```bash
-git clone https://github.com/miles2005-web/eu-ai-act-legal-rag-prototype.git
-cd eu-ai-act-legal-rag-prototype
-python3.12 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-Run the assessment interface:
-
-```bash
-streamlit run assessment_app.py
-```
-
-Run the existing Streamlit retrieval interface:
-
-```bash
-export OPENROUTER_API_KEY="your-key-here"
-streamlit run app_chroma.py
-```
-
-## Roadmap
-
-- Dynamic questionnaire expansion for additional rule requirements
-- Additional EU AI Act classification, role, prohibition, and obligation rules
-- GDPR and Data Act cross-regulatory assessment
-- Broader support for EU digital regulation
-- Persistent cases, review workflows, exports, and enterprise compliance processes
-
-## Project Context
-
-This project explores how legal rules can be represented as transparent computational assessments without obscuring legal uncertainty. It is designed as a demonstrable Law & Technology portfolio project and as a prototype for real compliance workflow design.
-
-Built by a law student at Jilin University (Changchun, China).
+This project explores how legal rules can be represented as transparent, testable computational assessments without hiding legal uncertainty. It is intended as a Law & Technology portfolio project and a prototype for real compliance-workflow design—not final product documentation.
 
 ## Disclaimer
 
-This prototype provides preliminary compliance guidance only. It does not constitute legal advice, and its findings should be reviewed by qualified legal professionals against the complete facts and current law.
+This prototype provides preliminary screening guidance only. It does not constitute legal advice, certification, or a definitive regulatory or compliance determination. Findings should be reviewed by qualified professionals against the complete facts and current law.
