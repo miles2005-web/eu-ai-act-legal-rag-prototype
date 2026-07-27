@@ -96,12 +96,25 @@ class IndustrialAIFixtureTests(unittest.TestCase):
         expected_sections = {
             model_field.name
             for model_field in fields(AssessmentFacts)
+            if model_field.init
         }
         fixture_sections = set(payload["facts"])
         self.assertTrue(fixture_sections.issubset(expected_sections))
         self.assertEqual(
             expected_sections.difference(fixture_sections),
-            {"product_regulation"},
+            {
+                "product_regulation",
+                "temporal_context",
+                "territorial_context",
+                "actors",
+                "ai_systems",
+                "recruitment_workflows",
+                "processing_operations",
+                "recruitment_processes",
+                "compliance_artefacts",
+                "retired_entity_ids",
+                "source_schema_version",
+            },
         )
 
     def test_expected_outcome_fields_are_stable(self) -> None:

@@ -4,9 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import ClassVar
 
 from src.assessment.frameworks import RegulatoryFramework
-from src.assessment.models import SerializableModel, new_identifier
+from src.assessment.models import (
+    SerializableModel,
+    new_identifier,
+    validate_stable_identifier,
+)
 
 
 class FindingStatus(str, Enum):
@@ -70,3 +75,29 @@ class Finding(SerializableModel):
     evidence_refs: list[str] = field(default_factory=list)
     requires_legal_review: bool = False
     trace: list[FindingTraceEntry] = field(default_factory=list)
+
+    REQUIRED_SERIALIZED_FIELDS: ClassVar[frozenset[str]] = frozenset(
+        {"finding_id"}
+    )
+
+    def __post_init__(self) -> None:
+        validate_stable_identifier(self.finding_id, field_name="finding_id")
+        if self.assessment_run_id is not None:
+            validate_stable_identifier(
+                self.assessment_run_id,
+                field_name="assessment_run_id",
+            )
+        self.evidence_refs = _normalized_identifiers(
+            self.evidence_refs,
+            field_name="evidence_refs",
+        )
+
+
+def _normalized_identifiers(values: list[str], *, field_name: str) -> list[str]:
+    normalized = [
+        validate_stable_identifier(value, field_name=field_name)
+        for value in values
+    ]
+    if len(set(normalized)) != len(normalized):
+        raise ValueError(f"{field_name} must not contain duplicate IDs")
+    return normalized

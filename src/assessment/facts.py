@@ -2,11 +2,25 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import MISSING, dataclass, field, fields
+from copy import deepcopy
 from datetime import date, datetime
 from enum import Enum
+from typing import Any, ClassVar
 
-from src.assessment.models import SerializableModel, TriState
+from src.assessment.models import SerializableModel, TriState, model_from_dict
+from src.assessment.recruitment_models import (
+    ActorFacts,
+    AISystemFacts,
+    ComplianceArtefactMetadata,
+    ProcessingOperationFacts,
+    RecruitmentDecisionProcessFacts,
+    RecruitmentWorkflowFacts,
+    TemporalContextFacts,
+    TerritorialContextFacts,
+    normalized_identifier_list,
+)
+from src.assessment.scope import StableIdentifier
 
 
 class LifecycleStatus(str, Enum):
@@ -279,3 +293,423 @@ class AssessmentFacts(SerializableModel):
     )
     data_act: DataActFacts = field(default_factory=DataActFacts)
     fact_metadata: dict[str, FactMetadata] = field(default_factory=dict)
+    temporal_context: TemporalContextFacts | None = None
+    territorial_context: TerritorialContextFacts | None = None
+    actors: list[ActorFacts] | None = None
+    ai_systems: list[AISystemFacts] | None = None
+    recruitment_workflows: list[RecruitmentWorkflowFacts] | None = None
+    processing_operations: list[ProcessingOperationFacts] | None = None
+    recruitment_processes: list[RecruitmentDecisionProcessFacts] | None = None
+    compliance_artefacts: list[ComplianceArtefactMetadata] | None = None
+    retired_entity_ids: list[str] = field(default_factory=list)
+    source_schema_version: str | None = None
+    _serialized_fields: frozenset[str] | None = field(
+        default=None,
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    _schema_version_at_construction: str = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+
+    V2_SCHEMA_VERSION: ClassVar[str] = "2.0.0"
+    V3_SCHEMA_VERSION: ClassVar[str] = "3.0.0"
+    _V3_FIELDS: ClassVar[tuple[str, ...]] = (
+        "temporal_context",
+        "territorial_context",
+        "actors",
+        "ai_systems",
+        "recruitment_workflows",
+        "processing_operations",
+        "recruitment_processes",
+        "compliance_artefacts",
+        "retired_entity_ids",
+        "source_schema_version",
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "_schema_version_at_construction", self.schema_version
+        )
+        self.validate_schema_consistency()
+
+    def validate_schema_consistency(self) -> None:
+        """Enforce the declared schema at every persistence boundary."""
+
+        if self.schema_version != self._schema_version_at_construction:
+            raise ValueError(
+                "schema_version cannot be changed in place; use an explicit "
+                "compatibility adapter"
+            )
+        if self.schema_version not in (
+            self.V2_SCHEMA_VERSION,
+            self.V3_SCHEMA_VERSION,
+        ):
+            raise ValueError(
+                f"unsupported AssessmentFacts schema {self.schema_version!r}"
+            )
+        if self.schema_version == self.V2_SCHEMA_VERSION:
+            populated = [
+                name
+                for name in self._V3_FIELDS
+                if (
+                    getattr(self, name) not in (None, [])
+                    if name != "retired_entity_ids"
+                    else bool(getattr(self, name))
+                )
+            ]
+            if populated:
+                raise ValueError(
+                    "schema 2.0.0 cannot contain v3 fields: "
+                    + ", ".join(populated)
+                )
+        else:
+            self.validate_v3()
+        self._validate_source_shape()
+
+    @classmethod
+    def new_v3(cls, **changes: object) -> AssessmentFacts:
+        """Create an explicitly versioned v3 draft without changing v0.5 defaults."""
+
+        return cls(schema_version=cls.V3_SCHEMA_VERSION, **changes)
+
+    def to_dict(self) -> dict[str, object]:
+        self.validate_schema_consistency()
+        payload = SerializableModel.to_dict(self)
+        if self.schema_version == self.V2_SCHEMA_VERSION:
+            for field_name in self._V3_FIELDS:
+                payload.pop(field_name, None)
+        if self._serialized_fields is not None:
+            payload = {
+                key: value
+                for key, value in payload.items()
+                if key in self._serialized_fields
+            }
+        return payload
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> AssessmentFacts:
+        """Read v2 or v3 facts without silently adding absent source fields."""
+
+        restored = model_from_dict(cls, payload)
+        restored._serialized_fields = frozenset(payload)
+        return restored
+
+    def make_editable(self) -> AssessmentFacts:
+        """Return an isolated draft that may serialize newly populated fields."""
+
+        clone = deepcopy(self)
+        clone._serialized_fields = None
+        return clone
+
+    def _validate_source_shape(self) -> None:
+        if self._serialized_fields is None:
+            return
+        model_fields = {item.name: item for item in fields(self)}
+        for name, model_field in model_fields.items():
+            if name.startswith("_") or name in self._serialized_fields:
+                continue
+            if model_field.default is not MISSING:
+                default = model_field.default
+            elif model_field.default_factory is not MISSING:
+                default = model_field.default_factory()
+            else:
+                continue
+            if getattr(self, name) != default:
+                raise ValueError(
+                    f"field {name!r} was absent from the source payload; use "
+                    "make_editable() or an explicit compatibility adapter "
+                    "before populating it"
+                )
+
+    def active_entity_ids(self) -> set[str]:
+        """Return stable v3 entity identities, never list positions."""
+
+        identifiers = {
+            str(identifier)
+            for collection, attribute in (
+                (self.actors, "actor_id"),
+                (self.ai_systems, "system_id"),
+                (self.recruitment_workflows, "workflow_id"),
+                (self.processing_operations, "processing_operation_id"),
+                (self.recruitment_processes, "process_id"),
+                (self.compliance_artefacts, "artefact_id"),
+            )
+            for record in collection or ()
+            for identifier in (getattr(record, attribute),)
+        }
+        identifiers.update(
+            str(criterion.criterion_id)
+            for process in self.recruitment_processes or ()
+            for criterion in process.screening_criteria or ()
+        )
+        return identifiers
+
+    def validate_v3(self) -> None:
+        """Validate stable identities and references for a v3 fact snapshot."""
+
+        if self.schema_version != self.V3_SCHEMA_VERSION:
+            raise ValueError("validate_v3 requires AssessmentFacts schema 3.0.0")
+        for record in self.actors or ():
+            record.normalize_references()
+        for record in self.ai_systems or ():
+            record.normalize_references()
+        for record in self.recruitment_workflows or ():
+            record.normalize_references()
+        for record in self.processing_operations or ():
+            record.normalize_references()
+        for record in self.recruitment_processes or ():
+            record.normalize_references()
+        if self.temporal_context is not None:
+            self.temporal_context.normalize_references()
+        if self.territorial_context is not None:
+            self.territorial_context.normalize_references()
+        self.retired_entity_ids = normalized_identifier_list(
+            self.retired_entity_ids,
+            StableIdentifier,
+            field_name="retired_entity_ids",
+        ) or []
+
+        all_ids: list[str] = []
+        for collection, attribute in (
+            (self.actors, "actor_id"),
+            (self.ai_systems, "system_id"),
+            (self.recruitment_workflows, "workflow_id"),
+            (self.processing_operations, "processing_operation_id"),
+        ):
+            identifiers = [
+                str(getattr(record, attribute)) for record in collection or ()
+            ]
+            if len(set(identifiers)) != len(identifiers):
+                raise ValueError(f"duplicate stable identifiers in {attribute}")
+            all_ids.extend(identifiers)
+        process_ids = [
+            str(item.process_id) for item in self.recruitment_processes or ()
+        ]
+        artefact_ids = [
+            str(item.artefact_id) for item in self.compliance_artefacts or ()
+        ]
+        criterion_ids = [
+            str(criterion.criterion_id)
+            for process in self.recruitment_processes or ()
+            for criterion in process.screening_criteria or ()
+        ]
+        for label, identifiers in (
+            ("process_id", process_ids),
+            ("artefact_id", artefact_ids),
+            ("criterion_id", criterion_ids),
+        ):
+            if len(set(identifiers)) != len(identifiers):
+                raise ValueError(f"duplicate stable identifiers in {label}")
+        all_ids.extend(process_ids)
+        all_ids.extend(artefact_ids)
+        all_ids.extend(criterion_ids)
+        if len(set(all_ids)) != len(all_ids):
+            raise ValueError("stable entity identifiers must be case-wide unique")
+        retired = set(self.retired_entity_ids)
+        if len(retired) != len(self.retired_entity_ids):
+            raise ValueError("retired_entity_ids must not contain duplicates")
+        if retired.intersection(all_ids):
+            raise ValueError("retired identifiers cannot be reused")
+
+        actor_ids = {str(item.actor_id) for item in self.actors or ()}
+        system_ids = {str(item.system_id) for item in self.ai_systems or ()}
+        workflow_ids = {
+            str(item.workflow_id) for item in self.recruitment_workflows or ()
+        }
+        operation_ids = {
+            str(item.processing_operation_id)
+            for item in self.processing_operations or ()
+        }
+        for actor in self.actors or ():
+            for references in (
+                actor.operates_system_ids,
+                actor.develops_or_commissions_system_ids,
+                actor.markets_system_ids_under_own_name,
+                actor.uses_system_ids_in_own_organisation,
+            ):
+                self._reject_unknown_refs(references, system_ids, "actor system")
+            for system_id, actor_references in (
+                actor.uses_system_ids_on_behalf_of_actor_ids or {}
+            ).items():
+                self._reject_unknown_refs(
+                    [system_id], system_ids, "actor behalf system"
+                )
+                self._reject_unknown_refs(
+                    actor_references, actor_ids, "actor behalf actor"
+                )
+        for system in self.ai_systems or ():
+            for references in (
+                system.vendor_actor_ids,
+                system.commissioning_actor_ids,
+                system.branding_actor_ids,
+                system.selected_by_actor_ids,
+                system.configured_by_actor_ids,
+            ):
+                self._reject_unknown_refs(references, actor_ids, "system actor")
+        for workflow in self.recruitment_workflows or ():
+            self._reject_unknown_refs(
+                workflow.system_ids, system_ids, "workflow system"
+            )
+            self._reject_unknown_refs(
+                workflow.processing_operation_ids,
+                operation_ids,
+                "workflow processing operation",
+            )
+            for references in (
+                workflow.employer_actor_ids,
+                workflow.recruiter_actor_ids,
+                workflow.output_recipient_actor_ids,
+                workflow.final_decision_actor_ids,
+            ):
+                self._reject_unknown_refs(references, actor_ids, "workflow actor")
+        for operation in self.processing_operations or ():
+            self._reject_unknown_refs(
+                operation.system_ids, system_ids, "operation system"
+            )
+            self._reject_unknown_refs(
+                operation.participating_actor_ids,
+                actor_ids,
+                "operation actor",
+            )
+            self._reject_unknown_refs(
+                operation.recipients,
+                actor_ids,
+                "operation recipient",
+            )
+            if (
+                operation.workflow_id is not None
+                and str(operation.workflow_id) not in workflow_ids
+            ):
+                raise ValueError(
+                    f"unknown operation workflow reference {operation.workflow_id!r}"
+                )
+        for process in self.recruitment_processes or ():
+            self._reject_optional_ref(
+                process.workflow_id, workflow_ids, "process workflow"
+            )
+            self._reject_optional_ref(
+                process.processing_operation_id,
+                operation_ids,
+                "process processing operation",
+            )
+            self._reject_optional_ref(
+                process.system_id, system_ids, "process system"
+            )
+            for criterion in process.screening_criteria or ():
+                self._reject_unknown_refs(
+                    criterion.selecting_actor_ids,
+                    actor_ids,
+                    "criterion selecting actor",
+                )
+                self._reject_unknown_refs(
+                    criterion.configuring_actor_ids,
+                    actor_ids,
+                    "criterion configuring actor",
+                )
+        if self.temporal_context is not None:
+            self._reject_unknown_refs(
+                list((self.temporal_context.intended_use_dates or {}).keys()),
+                workflow_ids,
+                "temporal workflow",
+            )
+            self._reject_unknown_refs(
+                list((self.temporal_context.put_into_service_dates or {}).keys()),
+                system_ids,
+                "temporal system",
+            )
+            self._reject_unknown_refs(
+                list((self.temporal_context.operation_dates or {}).keys()),
+                operation_ids,
+                "temporal operation",
+            )
+        if self.territorial_context is not None:
+            for mapping, known, label in (
+                (
+                    self.territorial_context.actor_establishment_locations,
+                    actor_ids,
+                    "territorial actor",
+                ),
+                (
+                    self.territorial_context.system_use_locations,
+                    system_ids,
+                    "territorial system",
+                ),
+                (
+                    self.territorial_context.output_use_locations,
+                    workflow_ids,
+                    "territorial output workflow",
+                ),
+                (
+                    self.territorial_context.affected_person_locations,
+                    workflow_ids,
+                    "territorial affected-person workflow",
+                ),
+                (
+                    self.territorial_context.processing_operation_context,
+                    operation_ids,
+                    "territorial operation",
+                ),
+            ):
+                self._reject_unknown_refs(
+                    list((mapping or {}).keys()), known, label
+                )
+        for artefact in self.compliance_artefacts or ():
+            self._validate_scope(
+                artefact.scope,
+                actor_ids=actor_ids,
+                system_ids=system_ids,
+                workflow_ids=workflow_ids,
+                operation_ids=operation_ids,
+                label="compliance artefact",
+            )
+
+    @classmethod
+    def _validate_scope(
+        cls,
+        scope: object,
+        *,
+        actor_ids: set[str],
+        system_ids: set[str],
+        workflow_ids: set[str],
+        operation_ids: set[str],
+        label: str,
+    ) -> None:
+        cls._reject_optional_ref(scope.actor_id, actor_ids, f"{label} actor")
+        cls._reject_optional_ref(scope.system_id, system_ids, f"{label} system")
+        cls._reject_optional_ref(
+            scope.workflow_id, workflow_ids, f"{label} workflow"
+        )
+        cls._reject_optional_ref(
+            scope.processing_operation_id,
+            operation_ids,
+            f"{label} processing operation",
+        )
+
+    @staticmethod
+    def _reject_optional_ref(
+        reference: object | None,
+        known: set[str],
+        label: str,
+    ) -> None:
+        if reference is not None and str(reference) not in known:
+            raise ValueError(f"unknown {label} reference {reference!r}")
+
+    @staticmethod
+    def _reject_unknown_refs(
+        references: list[object] | None,
+        known: set[str],
+        label: str,
+    ) -> None:
+        if references is None:
+            return
+        unknown = sorted(
+            str(reference)
+            for reference in references
+            if str(reference) not in known
+        )
+        if unknown:
+            raise ValueError(f"unknown {label} references: {unknown!r}")

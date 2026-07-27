@@ -4,8 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import ClassVar
 
-from src.assessment.models import SerializableModel, new_identifier
+from src.assessment.models import (
+    SerializableModel,
+    new_identifier,
+    validate_stable_identifier,
+)
 
 
 class AuthorityLevel(str, Enum):
@@ -30,6 +35,10 @@ class Evidence(SerializableModel):
     document_version: str | None = None
     evidence_id: str = field(default_factory=new_identifier)
 
+    REQUIRED_SERIALIZED_FIELDS: ClassVar[frozenset[str]] = frozenset(
+        {"evidence_id"}
+    )
+
     def __post_init__(self) -> None:
         for field_name in ("legal_source", "citation", "excerpt", "evidence_id"):
             value = getattr(self, field_name)
@@ -42,6 +51,7 @@ class Evidence(SerializableModel):
             or not self.document_version.strip()
         ):
             raise ValueError("document_version must be None or a non-empty string")
+        validate_stable_identifier(self.evidence_id, field_name="evidence_id")
 
 
 @dataclass(slots=True)
@@ -50,6 +60,10 @@ class FindingEvidenceBinding(SerializableModel):
 
     finding_id: str
     evidence_refs: list[str]
+
+    REQUIRED_SERIALIZED_FIELDS: ClassVar[frozenset[str]] = frozenset(
+        {"finding_id", "evidence_refs"}
+    )
 
     def __post_init__(self) -> None:
         if not isinstance(self.finding_id, str) or not self.finding_id.strip():
@@ -63,4 +77,6 @@ class FindingEvidenceBinding(SerializableModel):
             raise ValueError("evidence_refs must contain non-empty string IDs")
         if len(set(self.evidence_refs)) != len(self.evidence_refs):
             raise ValueError("evidence_refs must not contain duplicate IDs")
-
+        validate_stable_identifier(self.finding_id, field_name="finding_id")
+        for evidence_id in self.evidence_refs:
+            validate_stable_identifier(evidence_id, field_name="evidence_refs")
