@@ -10,6 +10,26 @@ Deterministic, versioned rules produce formal assessment Findings. Dynamic quest
 
 LLM output is not used to determine the formal legal result. If an explanatory LLM layer is added or used later, it must remain downstream of the rules and Evidence. Every Finding is a preliminary screening conclusion—not legal advice, certification, or a final compliance determination.
 
+## Live application
+
+Production:
+
+https://eu-regulatory-assessment.streamlit.app/
+
+Release:
+
+https://github.com/miles2005-web/eu-ai-act-legal-rag-prototype/releases/tag/v0.5.0-prototype
+
+The production application runs from:
+
+- branch: `main`
+- entry point: `assessment_app.py`
+- Python: 3.12
+- Streamlit: 1.56.0
+
+No API key, Chroma database, external corpus directory, or runtime network
+access is required for the deterministic assessment workflow.
+
 ## How the platform works
 
 ```text
