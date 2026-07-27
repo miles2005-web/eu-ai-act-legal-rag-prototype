@@ -25,3 +25,6 @@ data/parsed/
 
 # Generated candidate corpus builds
 corpus_builds/
+
+# Downloaded official legal source documents
+corpus_sources/

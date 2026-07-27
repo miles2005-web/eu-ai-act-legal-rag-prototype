@@ -12,6 +12,7 @@ from src.ui.styles import ENTERPRISE_STYLES
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 THEME_CONFIG = PROJECT_ROOT / ".streamlit" / "config.toml"
+REQUIREMENTS = PROJECT_ROOT / "requirements.txt"
 
 
 class StreamlitThemeConfigurationTests(unittest.TestCase):
@@ -48,6 +49,12 @@ class StreamlitThemeConfigurationTests(unittest.TestCase):
             },
         )
         self.assertEqual(self.config["client"]["toolbarMode"], "minimal")
+        self.assertFalse(self.config["browser"]["gatherUsageStats"])
+
+    def test_supported_streamlit_version_is_pinned(self) -> None:
+        requirements = REQUIREMENTS.read_text(encoding="utf-8").splitlines()
+        self.assertIn("streamlit==1.56.0", requirements)
+        self.assertNotIn("streamlit==1.44.1", requirements)
 
     def test_required_light_semantic_tokens_exist(self) -> None:
         expected = {

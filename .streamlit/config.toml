@@ -16,3 +16,6 @@ primaryColor = "#0071E3"
 
 [client]
 toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
