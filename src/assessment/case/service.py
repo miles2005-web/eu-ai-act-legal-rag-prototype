@@ -45,6 +45,7 @@ class AssessmentCaseService:
         current_facts = facts if facts is not None else AssessmentFacts()
         if not isinstance(current_facts, AssessmentFacts):
             raise TypeError("facts must be an AssessmentFacts instance or None")
+        current_facts.validate_schema_consistency()
         stable_case_id = case_id if case_id is not None else new_identifier()
         if stable_case_id in self._cases:
             raise DuplicateAssessmentCaseError(
@@ -73,12 +74,28 @@ class AssessmentCaseService:
 
         if not isinstance(facts, AssessmentFacts):
             raise TypeError("facts must be an AssessmentFacts instance")
+        facts.validate_schema_consistency()
         stored_case = self._get_stored_case(case_id)
         if facts.schema_version != stored_case.schema_version:
             raise AssessmentCaseSchemaMismatchError(
                 f"Case schema {stored_case.schema_version!r} does not match "
                 f"facts schema {facts.schema_version!r}"
             )
+        if facts.schema_version == AssessmentFacts.V3_SCHEMA_VERSION:
+            previous_ids = stored_case.current_facts.active_entity_ids()
+            current_ids = facts.active_entity_ids()
+            removed_ids = previous_ids.difference(current_ids)
+            retired_ids = set(facts.retired_entity_ids)
+            previous_retired_ids = set(
+                stored_case.current_facts.retired_entity_ids
+            )
+            if not previous_retired_ids.issubset(retired_ids):
+                raise ValueError("retired v3 entity IDs cannot be removed")
+            if not removed_ids.issubset(retired_ids):
+                raise ValueError(
+                    "removed v3 entity IDs must be recorded in "
+                    f"retired_entity_ids: {sorted(removed_ids - retired_ids)!r}"
+                )
 
         updated_at = self._clock()
         if not isinstance(updated_at, datetime) or updated_at.utcoffset() is None:
@@ -107,4 +124,3 @@ class AssessmentCaseService:
             raise AssessmentCaseNotFoundError(
                 f"Case ID {case_id!r} was not found"
             ) from exc
-

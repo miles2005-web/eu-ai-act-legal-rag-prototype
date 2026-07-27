@@ -7,6 +7,19 @@ from src.assessment.case import (
     AssessmentCaseService,
     DuplicateAssessmentCaseError,
 )
+from src.assessment.baselines import (
+    AssessmentBaseline,
+    EvidencePackBaseline,
+    RuleBaselineEntry,
+)
+from src.assessment.context import (
+    AssessmentContext,
+    PrerequisiteFindingSummary,
+)
+from src.assessment.compatibility import (
+    AssessmentFactsCompatibilityAdapter,
+    AssessmentReportCompatibilityReader,
+)
 from src.assessment.engine import AssessmentEngine, RuleOutputError
 from src.assessment.evidence import (
     AuthorityLevel,
@@ -23,6 +36,13 @@ from src.assessment.evidence import (
 from src.assessment.facts import AssessmentFacts, ProductRegulationFacts
 from src.assessment.findings import Finding, FindingCategory, FindingStatus, LegalBasis
 from src.assessment.frameworks import RegulatoryFramework
+from src.assessment.fingerprints import V06FingerprintInput
+from src.assessment.invocations import (
+    AuthorizedRuleInvocation,
+    RuleInvocation,
+    derive_invocation_id,
+)
+from src.assessment.execution import RuleExecutionRecord, RuleExecutionStatus
 from src.assessment.models import AssessmentRun, AssessmentRunStatus, TriState
 from src.assessment.questionnaire import (
     AnswerType,
@@ -56,12 +76,39 @@ from src.assessment.requirements import (
     RuleRequirementResult,
 )
 from src.assessment.report import (
+    ApplicabilityLimitation,
     AssessmentReport,
     FrameworkFindings,
+    InformationalGap,
     MissingInformation,
     ReportBuildError,
     ReportBuilder,
     RuleVersionMetadata,
+)
+from src.assessment.recruitment_models import (
+    ActorFacts,
+    ActorKind,
+    AISystemFacts,
+    ArtefactSupplyState,
+    ClassificationReviewState,
+    ComplianceArtefactMetadata,
+    ProcessingOperationFacts,
+    RecruitmentDecisionProcessFacts,
+    RecruitmentWorkflowFacts,
+    RoleHypothesis,
+    RoleHypothesisStatus,
+    ScreeningCriterionFacts,
+    TemporalContextFacts,
+    TerritorialContextFacts,
+)
+from src.assessment.scope import (
+    ActorId,
+    AssessmentScope,
+    InvocationId,
+    ProcessingOperationId,
+    StableIdentifier,
+    SystemId,
+    WorkflowId,
 )
 from src.assessment.results import AssessmentResult, RuleExecutionFailure
 from src.assessment.workflow import (
@@ -75,13 +122,23 @@ __all__ = [
     "AssessmentCaseSchemaMismatchError",
     "AssessmentCaseService",
     "AssessmentEngine",
+    "AssessmentBaseline",
+    "AssessmentContext",
     "AssessmentFacts",
+    "AssessmentFactsCompatibilityAdapter",
     "AssessmentResult",
     "AssessmentReport",
+    "AssessmentReportCompatibilityReader",
     "AssessmentRun",
     "AssessmentRunNotFoundError",
     "AssessmentRunStatus",
     "AssessmentWorkflowService",
+    "AssessmentScope",
+    "ActorFacts",
+    "ActorId",
+    "ActorKind",
+    "AISystemFacts",
+    "ApplicabilityLimitation",
     "AnswerType",
     "AmbiguousAnnexIInstrumentAliasError",
     "AnnexIInstrument",
@@ -92,11 +149,16 @@ __all__ = [
     "AnnexIInstrumentType",
     "AnnexISection",
     "AuthorityLevel",
+    "AuthorizedRuleInvocation",
+    "ArtefactSupplyState",
+    "ClassificationReviewState",
+    "ComplianceArtefactMetadata",
     "DuplicateEvidenceError",
     "DuplicateAssessmentCaseError",
     "DuplicateQuestionError",
     "DuplicateQuestionFactPathError",
     "Evidence",
+    "EvidencePackBaseline",
     "EvidenceService",
     "EvidenceServiceResult",
     "FactRequirementValidator",
@@ -105,6 +167,8 @@ __all__ = [
     "FindingEvidenceBinding",
     "FindingStatus",
     "FrameworkFindings",
+    "InformationalGap",
+    "InvocationId",
     "InMemoryEvidenceService",
     "InvalidQuestionFactPathError",
     "InvalidProductRegulationFactsError",
@@ -120,16 +184,35 @@ __all__ = [
     "QuestionOption",
     "QuestionRegistry",
     "ProductRegulationFacts",
+    "ProcessingOperationFacts",
+    "ProcessingOperationId",
+    "PrerequisiteFindingSummary",
+    "RecruitmentDecisionProcessFacts",
+    "RecruitmentWorkflowFacts",
     "RegulatoryFramework",
     "ReportBuildError",
     "ReportBuilder",
+    "RoleHypothesis",
+    "RoleHypothesisStatus",
+    "RuleBaselineEntry",
+    "RuleExecutionRecord",
+    "RuleExecutionStatus",
+    "RuleInvocation",
     "RuleExecutionFailure",
     "RuleOutputError",
     "RuleRequirementResult",
     "RuleVersionMetadata",
     "TriState",
+    "ScreeningCriterionFacts",
+    "StableIdentifier",
+    "SystemId",
+    "TemporalContextFacts",
+    "TerritorialContextFacts",
+    "V06FingerprintInput",
     "VectorStoreFormatError",
     "VectorStoreJSONEvidenceRetriever",
     "load_annex_i_instrument_catalog",
     "validate_product_regulation_facts",
+    "WorkflowId",
+    "derive_invocation_id",
 ]
