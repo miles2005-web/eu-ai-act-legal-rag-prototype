@@ -1,0 +1,48 @@
+{
+  "catalog_schema_version": "1.0.0",
+  "sources": [
+    {
+      "instrument_id": "EU_AI_ACT",
+      "title": "Artificial Intelligence Act",
+      "regulation_number": "Regulation (EU) 2024/1689",
+      "authority_level": "binding_legislation",
+      "version": "Regulation (EU) 2024/1689",
+      "official_uri": "http://data.europa.eu/eli/reg/2024/1689/oj",
+      "jurisdiction": "EU",
+      "language": "en",
+      "source_aliases": [
+        "EU AI Act，Regulation (EU) 2024:1689.txt",
+        "AI Act Annexes I-XIII.txt",
+        "AI Act Recitals.txt",
+        "Regulation_2024_1689.html"
+      ]
+    },
+    {
+      "instrument_id": "GDPR",
+      "title": "General Data Protection Regulation",
+      "regulation_number": "Regulation (EU) 2016/679",
+      "authority_level": "binding_legislation",
+      "version": "Regulation (EU) 2016/679",
+      "official_uri": "http://data.europa.eu/eli/reg/2016/679/oj",
+      "jurisdiction": "EU",
+      "language": "en",
+      "source_aliases": [
+        "GDPR2016:679.txt"
+      ]
+    },
+    {
+      "instrument_id": "EU_DATA_ACT",
+      "title": "EU Data Act",
+      "regulation_number": "Regulation (EU) 2023/2854",
+      "authority_level": "binding_legislation",
+      "version": "Regulation (EU) 2023/2854",
+      "official_uri": "http://data.europa.eu/eli/reg/2023/2854/oj",
+      "jurisdiction": "EU",
+      "language": "en",
+      "source_aliases": [
+        "EU Data Act Regulation 2023-2854.txt",
+        "Regulation_2023_2854.html"
+      ]
+    }
+  ]
+}

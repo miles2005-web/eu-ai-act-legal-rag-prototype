@@ -1,0 +1,136 @@
+{
+  "fixture_version": "1.0.0",
+  "scenario_id": "industrial-ai-connected-machinery-data-access",
+  "scenario": {
+    "name": "Industrial AI connected machinery monitoring",
+    "description": "A European manufacturer operates an AI-enabled industrial monitoring system connected to production machinery. The system collects and analyses operational data from connected equipment, and an external maintenance provider requests access to relevant machine data."
+  },
+  "facts": {
+    "schema_version": "2.0.0",
+    "case": {
+      "title": "EuroForge industrial monitoring data assessment",
+      "reference": "DEMO-DATA-ACT-001",
+      "assessment_date": "2026-07-12",
+      "notes": "Demonstration scenario for preliminary EU Data Act relevance screening."
+    },
+    "system": {
+      "name": "ForgeMonitor AI",
+      "description": "An AI-enabled monitoring service connected to industrial machinery that analyses sensor readings, detects anomalous operating conditions, and recommends preventive maintenance actions.",
+      "lifecycle_status": "deployed",
+      "intended_purpose": "Monitor connected production equipment and support preventive maintenance using operational machine data.",
+      "outputs": [
+        "prediction",
+        "recommendation"
+      ],
+      "machine_based_inference": "yes",
+      "degree_of_autonomy": "limited",
+      "adaptiveness_after_deployment": "no"
+    },
+    "scope": {
+      "provider_established_in_eu": "yes",
+      "deployer_established_in_eu": "yes",
+      "placed_on_eu_market": "yes",
+      "put_into_service_in_eu": "yes",
+      "output_used_in_eu": "yes",
+      "exclusively_military_defence_national_security": "no",
+      "research_before_market_or_service": "no",
+      "personal_non_professional_activity": "no",
+      "open_source_release": "no"
+    },
+    "organisation": {
+      "name": "EuroForge Manufacturing SE",
+      "establishment_countries": [
+        "DE",
+        "NL"
+      ]
+    },
+    "supply_chain": {
+      "develops_system": "yes",
+      "has_system_developed_for_it": "no",
+      "markets_under_own_name_or_trademark": "yes",
+      "uses_system_under_its_authority": "yes",
+      "introduces_third_country_system_into_eu_market": "no",
+      "makes_system_available_in_eu_distribution_chain": "no",
+      "substantial_modification": "no",
+      "changed_intended_purpose": "no"
+    },
+    "use_context": {
+      "domain": "product_safety",
+      "task": "Industrial equipment monitoring, anomaly detection, and preventive maintenance recommendation",
+      "affected_persons": [
+        "worker"
+      ],
+      "materially_influences_decision": "no",
+      "human_review_before_effect": "yes",
+      "profiles_natural_persons": "no"
+    },
+    "practices": {
+      "manipulative_or_deceptive_technique": "no",
+      "exploits_vulnerability": "no",
+      "causes_or_likely_causes_significant_harm": "unknown",
+      "social_scoring": "no",
+      "criminal_risk_based_solely_on_profiling": "no",
+      "untargeted_facial_image_scraping": "no",
+      "emotion_inference": "no",
+      "emotion_inference_workplace_or_education": "no",
+      "biometric_categorisation_sensitive_attributes": "no",
+      "realtime_remote_biometric_identification_public_space_law_enforcement": "no"
+    },
+    "high_risk": {
+      "is_safety_component_or_product": "unknown",
+      "product_covered_by_annex_i": "unknown",
+      "requires_third_party_conformity_assessment": "unknown",
+      "annex_iii_area": "other",
+      "annex_iii_use_case": "industrial_monitoring",
+      "narrow_procedural_task": "unknown",
+      "improves_completed_human_activity": "unknown",
+      "detects_patterns_without_replacing_or_influencing_human_assessment": "unknown",
+      "preparatory_task": "unknown"
+    },
+    "data_protection": {
+      "personal_data_processed": "no",
+      "automated_individual_decision": "no",
+      "special_category_data_processed": "no"
+    },
+    "data_act": {
+      "connected_product": "yes",
+      "related_service": "yes",
+      "data_generated": "yes",
+      "data_holder_identified": "yes",
+      "user_or_third_party_access_request": "yes"
+    },
+    "fact_metadata": {
+      "data_act.connected_product": {
+        "source": "questionnaire",
+        "question_id": "DATA-ACT-CONNECTED-PRODUCT",
+        "recorded_at": "2026-07-12T10:00:00+00:00"
+      },
+      "data_act.related_service": {
+        "source": "questionnaire",
+        "question_id": "DATA-ACT-RELATED-SERVICE",
+        "recorded_at": "2026-07-12T10:01:00+00:00"
+      },
+      "data_act.data_generated": {
+        "source": "questionnaire",
+        "question_id": "DATA-ACT-DATA-GENERATED",
+        "recorded_at": "2026-07-12T10:02:00+00:00"
+      },
+      "data_act.data_holder_identified": {
+        "source": "questionnaire",
+        "question_id": "DATA-ACT-DATA-HOLDER",
+        "recorded_at": "2026-07-12T10:03:00+00:00"
+      },
+      "data_act.user_or_third_party_access_request": {
+        "source": "questionnaire",
+        "question_id": "DATA-ACT-ACCESS-REQUEST",
+        "recorded_at": "2026-07-12T10:04:00+00:00"
+      }
+    }
+  },
+  "expected_assessment": {
+    "rule_id": "EU_DATA_ACT_RELEVANCE",
+    "framework": "EU_DATA_ACT",
+    "category": "DATA_GOVERNANCE",
+    "status": "potentially_applies"
+  }
+}

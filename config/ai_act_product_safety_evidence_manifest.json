@@ -1,0 +1,32 @@
+{
+  "manifest_schema_version": "1.0.0",
+  "instrument_id": "EU_AI_ACT",
+  "celex": "32024R1689",
+  "document_version": "Regulation (EU) 2024/1689",
+  "official_source_uri": "https://eur-lex.europa.eu/eli/reg/2024/1689/oj/eng",
+  "records": [
+    {"canonical_citation": "Article 3(14)", "stable_evidence_id": "evidence:v2:71fd01f91c4dc552ef2f067d839a12ba", "authoritative_excerpt_hash": "29b8ce7e4cf027296253d4e4945fb7c12722303c03aec50042b5e72ce743707f"},
+    {"canonical_citation": "Article 6(1)(a)", "stable_evidence_id": "evidence:v2:21ccd8df4d5b12fc796eaa4418cb79e4", "authoritative_excerpt_hash": "27489f1a88c517ccfaa52e6a866da90fedf7c4c5744d9109c05587816a08f7c5"},
+    {"canonical_citation": "Article 6(1)(b)", "stable_evidence_id": "evidence:v2:c66cf0d29225996849193a5cd53dce91", "authoritative_excerpt_hash": "5f0fdb4985e575654790b6937364cb1d293579d370d65e1dab4fe7f7ee095e3a"},
+    {"canonical_citation": "Annex I, Section A, point 1", "stable_evidence_id": "evidence:v2:ac2cfe89633b4b87506b1980e0f73d39", "authoritative_excerpt_hash": "2ff051abc772eea8ac81c41ccc652965b9cca0eef13389c15f988bcfa9fdbbcf"},
+    {"canonical_citation": "Annex I, Section A, point 2", "stable_evidence_id": "evidence:v2:7dda637d2b78cacc509744b91c06b286", "authoritative_excerpt_hash": "9ebfc24ba3bb0565941baf164ad0e7ace54e805792e21aaaaf9b172c8fc6b5f0"},
+    {"canonical_citation": "Annex I, Section A, point 3", "stable_evidence_id": "evidence:v2:2b7afd31e387299e6bd0298b6b254d62", "authoritative_excerpt_hash": "ba6f403374614e5d2adfc53cfffd68360eb1914325463c3160e6e4126c3d4258"},
+    {"canonical_citation": "Annex I, Section A, point 4", "stable_evidence_id": "evidence:v2:ec3d155252a05bf02a595fe6caee922e", "authoritative_excerpt_hash": "963c1706e2019f8301f5f5987627dfcd0cfe5960968aac6008fb3145f5f2fdd0"},
+    {"canonical_citation": "Annex I, Section A, point 5", "stable_evidence_id": "evidence:v2:cf5d185e6c23e7ee6c43074ad510f2e8", "authoritative_excerpt_hash": "e131062de6b7c740cc3f648c0ef81813ef8d23914e3907dbb443b240f50ad537"},
+    {"canonical_citation": "Annex I, Section A, point 6", "stable_evidence_id": "evidence:v2:d7f204df7a999bbf9193fa576c251490", "authoritative_excerpt_hash": "1287e029f570e4917c05281a54986e9168620d20c28a3d6f244d3b987e97f440"},
+    {"canonical_citation": "Annex I, Section A, point 7", "stable_evidence_id": "evidence:v2:abad7bc75d1ba03afd80e172da359abd", "authoritative_excerpt_hash": "39c7f9b67dcf2ddc32d008b930e30958b26b77f1ea8f9fb5196e095257e26c76"},
+    {"canonical_citation": "Annex I, Section A, point 8", "stable_evidence_id": "evidence:v2:ba0f712fd85d0c9f96adda784ee6e82d", "authoritative_excerpt_hash": "1018dfa5c9c58377f72439981e4f94ee213cef9f45c51f5cb0fdbff7157ee67b"},
+    {"canonical_citation": "Annex I, Section A, point 9", "stable_evidence_id": "evidence:v2:5f42c58578ba4a5f3fc80f3c43bd99f5", "authoritative_excerpt_hash": "6831b31479cc2a0938ec9d9125b2ae9f5cbb13cddc97eb3aa9b2aba60b27f0d1"},
+    {"canonical_citation": "Annex I, Section A, point 10", "stable_evidence_id": "evidence:v2:cfbc14631cd3187a8439c1fd0d555977", "authoritative_excerpt_hash": "418fe903577fcc350d202968a7fe13c69078c84e825588b7bf9d57399bcc7915"},
+    {"canonical_citation": "Annex I, Section A, point 11", "stable_evidence_id": "evidence:v2:e6fd6135eb9e3f2cc3b3235b4e028e12", "authoritative_excerpt_hash": "54c39869acb22271b46655458b925b4230c89de11caa1769fa980694241dc4e8"},
+    {"canonical_citation": "Annex I, Section A, point 12", "stable_evidence_id": "evidence:v2:959676715a7cf746084d052885f9ed81", "authoritative_excerpt_hash": "1154e175f0642ab28e3c70de6310791f3efd3cfd94e259bd8277c8e2f4c59e50"},
+    {"canonical_citation": "Annex I, Section B, point 13", "stable_evidence_id": "evidence:v2:dcf1b67230b822b7936f92bc0701b239", "authoritative_excerpt_hash": "de2ff149da4100bba6f4a33607d8bb380991e3f052bb487fe731b998a945a776"},
+    {"canonical_citation": "Annex I, Section B, point 14", "stable_evidence_id": "evidence:v2:2e24c3f20f860d8b784d05878f9fe0af", "authoritative_excerpt_hash": "df1b9ff333f8f38a14f76d055adc9b5650dd1a26b30002398a12fe79c2ceacb1"},
+    {"canonical_citation": "Annex I, Section B, point 15", "stable_evidence_id": "evidence:v2:055015889a312cfba5d8e2c140789e23", "authoritative_excerpt_hash": "feaf288e2d4ce10ec8d9bb951802b99dc5941cb05cc79996e718bc2c417073fb"},
+    {"canonical_citation": "Annex I, Section B, point 16", "stable_evidence_id": "evidence:v2:2802daed25c87d8d4f57cd5977365af0", "authoritative_excerpt_hash": "c07b99474b934dfb2768af932d946bdeeccb029f84539e4486c7b13c07ac9e5d"},
+    {"canonical_citation": "Annex I, Section B, point 17", "stable_evidence_id": "evidence:v2:a979acb029d2711c2bad978d176437ad", "authoritative_excerpt_hash": "77dddd0840ead490cd865f7bad2687737654efd8cd5607e59fd4226bd17674b6"},
+    {"canonical_citation": "Annex I, Section B, point 18", "stable_evidence_id": "evidence:v2:f8326dae9c8b619cfb84ebd5236c448a", "authoritative_excerpt_hash": "24fe6a017af406b294e5e81e103b0e21921b8a4480d88775dc3ea97bdafaa989"},
+    {"canonical_citation": "Annex I, Section B, point 19", "stable_evidence_id": "evidence:v2:cc0a1ff3a97c80b2fb69de5957395c11", "authoritative_excerpt_hash": "dfdfeb2e48f74d52c2e08d8886d4f2c87cc53aeb8fc5f5452214efd7742ccaef"},
+    {"canonical_citation": "Annex I, Section B, point 20", "stable_evidence_id": "evidence:v2:6d5da8b38fd419dfa0663cf442957974", "authoritative_excerpt_hash": "64b7a4c9e4e473165e4b908584cc05df6fe6a65fe712ea7fa38a2cbee9401dad"}
+  ]
+}

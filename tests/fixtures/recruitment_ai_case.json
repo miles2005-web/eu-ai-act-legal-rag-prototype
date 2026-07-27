@@ -1,0 +1,118 @@
+{
+  "fixture_version": "1.0.0",
+  "scenario_id": "recruitment-ai-ranking-candidates",
+  "scenario": {
+    "name": "Recruitment AI candidate screening and ranking",
+    "description": "A fictional EU-based company uses a third-party AI system to screen job applications, score candidates against role criteria, and rank candidates for recruiter review. Recruiters use the ranking to decide which candidates progress to interview."
+  },
+  "facts": {
+    "schema_version": "2.0.0",
+    "case": {
+      "title": "Northstar Retail recruitment AI assessment",
+      "reference": "DEMO-EMPLOYMENT-001",
+      "assessment_date": "2026-07-11",
+      "notes": "Demonstration scenario for preliminary EU AI Act classification."
+    },
+    "system": {
+      "name": "TalentRank",
+      "description": "A machine-learning system that parses job applications, scores candidates against role criteria, and produces a ranked shortlist for human recruiters.",
+      "lifecycle_status": "deployed",
+      "intended_purpose": "Support recruitment teams by screening and ranking job candidates for open positions.",
+      "outputs": [
+        "prediction",
+        "recommendation"
+      ],
+      "machine_based_inference": "yes",
+      "degree_of_autonomy": "limited",
+      "adaptiveness_after_deployment": "no"
+    },
+    "scope": {
+      "provider_established_in_eu": "unknown",
+      "deployer_established_in_eu": "yes",
+      "placed_on_eu_market": "unknown",
+      "put_into_service_in_eu": "yes",
+      "output_used_in_eu": "yes",
+      "exclusively_military_defence_national_security": "no",
+      "research_before_market_or_service": "no",
+      "personal_non_professional_activity": "no",
+      "open_source_release": "no"
+    },
+    "organisation": {
+      "name": "Northstar Retail EU GmbH",
+      "establishment_countries": [
+        "DE",
+        "FR"
+      ]
+    },
+    "supply_chain": {
+      "develops_system": "no",
+      "has_system_developed_for_it": "no",
+      "markets_under_own_name_or_trademark": "no",
+      "uses_system_under_its_authority": "yes",
+      "introduces_third_country_system_into_eu_market": "unknown",
+      "makes_system_available_in_eu_distribution_chain": "no",
+      "substantial_modification": "no",
+      "changed_intended_purpose": "no"
+    },
+    "use_context": {
+      "domain": "employment",
+      "task": "Recruitment screening and ranking of job candidates for interview selection",
+      "affected_persons": [
+        "job_candidate"
+      ],
+      "materially_influences_decision": "yes",
+      "human_review_before_effect": "yes",
+      "profiles_natural_persons": "no"
+    },
+    "practices": {
+      "manipulative_or_deceptive_technique": "no",
+      "exploits_vulnerability": "no",
+      "causes_or_likely_causes_significant_harm": "unknown",
+      "social_scoring": "no",
+      "criminal_risk_based_solely_on_profiling": "no",
+      "untargeted_facial_image_scraping": "no",
+      "emotion_inference": "no",
+      "emotion_inference_workplace_or_education": "no",
+      "biometric_categorisation_sensitive_attributes": "no",
+      "realtime_remote_biometric_identification_public_space_law_enforcement": "no"
+    },
+    "high_risk": {
+      "is_safety_component_or_product": "no",
+      "product_covered_by_annex_i": "no",
+      "requires_third_party_conformity_assessment": "no",
+      "annex_iii_area": "employment",
+      "annex_iii_use_case": "recruitment_and_candidate_selection",
+      "narrow_procedural_task": "unknown",
+      "improves_completed_human_activity": "unknown",
+      "detects_patterns_without_replacing_or_influencing_human_assessment": "unknown",
+      "preparatory_task": "unknown"
+    },
+    "fact_metadata": {
+      "use_context.domain": {
+        "source": "questionnaire",
+        "question_id": "USE-DOMAIN",
+        "recorded_at": "2026-07-11T09:00:00+00:00"
+      },
+      "use_context.task": {
+        "source": "questionnaire",
+        "question_id": "EMPLOYMENT-TASK",
+        "recorded_at": "2026-07-11T09:01:00+00:00"
+      },
+      "use_context.materially_influences_decision": {
+        "source": "questionnaire",
+        "question_id": "EMPLOYMENT-MATERIAL-INFLUENCE",
+        "recorded_at": "2026-07-11T09:02:00+00:00"
+      }
+    }
+  },
+  "expected_assessment": {
+    "rule_id": "AI_ACT_HIGH_RISK_EMPLOYMENT",
+    "finding_category": "high_risk",
+    "finding_status": "potentially_applies",
+    "requires_legal_review": true,
+    "legal_basis": [
+      "Article 6",
+      "Annex III point 4(a)"
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "manifest_schema_version": "1.0.0",
+  "instrument_id": "EU_DATA_ACT",
+  "celex": "32023R2854",
+  "document_version": "Regulation (EU) 2023/2854",
+  "official_source_uri": "https://eur-lex.europa.eu/eli/reg/2023/2854/oj/eng",
+  "records": [
+    {
+      "canonical_citation": "Article 1(1)(a)",
+      "stable_evidence_id": "evidence:v2:064b49b6e320dcc92f19af0c81a63537",
+      "authoritative_excerpt_hash": "7434c9339d04cef2a6f393a363c9a79052ce8987c20d206588b6bcd2d7fd36a6",
+      "official_instrument_identifier": "Regulation (EU) 2023/2854",
+      "document_version": "Regulation (EU) 2023/2854"
+    },
+    {
+      "canonical_citation": "Article 2(5)",
+      "stable_evidence_id": "evidence:v2:2a1c882fe06379842fbf34b243cefec5",
+      "authoritative_excerpt_hash": "d83556429fb786b6d9da737cc2948759995cf329845b2843eb60347b99f97a8e",
+      "official_instrument_identifier": "Regulation (EU) 2023/2854",
+      "document_version": "Regulation (EU) 2023/2854"
+    },
+    {
+      "canonical_citation": "Article 2(6)",
+      "stable_evidence_id": "evidence:v2:da1a8ad793bf79ed89c5591788e98322",
+      "authoritative_excerpt_hash": "9af2108db9d7324e57573bd85184d54a9456b14c2ac2cf9c3648a376fab93de8",
+      "official_instrument_identifier": "Regulation (EU) 2023/2854",
+      "document_version": "Regulation (EU) 2023/2854"
+    }
+  ]
+}
