@@ -25,6 +25,7 @@ class GDPRArticle22RelevanceRule(AssessmentRule):
 
     rule_id = "GDPR_ARTICLE22_RELEVANCE"
     version = "2026.1"
+    planning_ordering_key = "030"
     framework = RegulatoryFramework.GDPR
     category = FindingCategory.DATA_PROTECTION
     required_fact_paths = (
